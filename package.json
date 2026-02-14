@@ -3,9 +3,8 @@
   "name": "kids-english-premium",
   "version": "1.0.0",
   "private": true,
-  "description": "Premium English Platform for Kids",
   "scripts": {
-    "start": "serve ."
-  },
-  "dependencies": {}
+    "build": "echo 'No build step required'",
+    "install": "echo 'No install step required'"
+  }
 }
