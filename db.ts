@@ -4,7 +4,7 @@ import { AppData, User, Module, Media, AppSettings, Announcement } from './types
 const DB_NAME = 'KidsEnglishDB';
 const STORE_NAME = 'app_data';
 const DATA_KEY = 'root_data';
-const STORAGE_KEY_OLD = 'kids_english_db'; // Para migração
+const STORAGE_KEY_OLD = 'kids_english_db';
 
 const initialData: AppData = {
   users: [
@@ -14,7 +14,7 @@ const initialData: AppData = {
     { id: "1", title: "Histórias em inglês", category: "historias", order: 1, active: true, icon: "📚", description: "Contos mágicos para aprender brincando", banner: "" },
   ],
   media: [
-    { id: "m1", moduleId: "1", type: "video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", title: "The Magic Forest Story" }
+    { id: "m1", moduleId: "1", type: "video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", title: "The Magic Forest Story", description: "Uma jornada incrível por uma floresta encantada onde os animais falam inglês!" }
   ],
   announcements: [
     { id: "a1", text: "Bem-vindos à nova plataforma! 🚀", active: true, date: new Date().toISOString() }
@@ -30,18 +30,15 @@ const initialData: AppData = {
   }
 };
 
-// Helper interno para abrir conexão
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 2);
-    
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
     };
-
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -53,23 +50,19 @@ export const getDb = async (): Promise<AppData> => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(DATA_KEY);
-
     request.onsuccess = () => {
       if (request.result) {
         resolve(request.result as AppData);
       } else {
-        // Tenta migrar do localStorage antigo se existir
         const oldData = localStorage.getItem(STORAGE_KEY_OLD);
         if (oldData) {
           try {
             const parsed = JSON.parse(oldData);
-            // Limpa o localStorage para liberar espaço para sessão
             localStorage.removeItem(STORAGE_KEY_OLD);
             saveDb(parsed).then(() => resolve(parsed));
             return;
           } catch(e) {}
         }
-        // Se não, salva inicial
         saveDb(initialData).then(() => resolve(initialData));
       }
     };
@@ -83,16 +76,11 @@ export const saveDb = async (data: AppData): Promise<boolean> => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.put(data, DATA_KEY);
-
     request.onsuccess = () => resolve(true);
-    request.onerror = () => {
-      console.error("Erro ao salvar IndexedDB:", request.error);
-      resolve(false);
-    };
+    request.onerror = () => resolve(false);
   });
 };
 
-// Métodos Auxiliares Wrapper (agora async)
 export const updateSettings = async (settings: AppSettings) => {
   const db = await getDb();
   db.settings = settings;
@@ -175,7 +163,6 @@ export const findUser = async (phone: string): Promise<User | undefined> => {
   return user;
 };
 
-// Funcionalidades de Backup
 export const exportData = async (): Promise<string> => {
   const db = await getDb();
   return JSON.stringify(db);
@@ -184,12 +171,10 @@ export const exportData = async (): Promise<string> => {
 export const importData = async (jsonString: string): Promise<boolean> => {
   try {
     const data = JSON.parse(jsonString) as AppData;
-    // Validação básica para garantir que é um arquivo válido do KidsEnglish
     if (!data.users || !data.modules || !data.settings) return false;
     await saveDb(data);
     return true;
   } catch (e) {
-    console.error("Erro na importação:", e);
     return false;
   }
 };

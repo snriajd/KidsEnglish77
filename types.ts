@@ -17,9 +17,9 @@ export interface Module {
   description?: string;
   banner?: string; 
   bannerSize?: string;
-  dripDays?: number; // Dias após cadastro para liberar
-  showInVertical?: boolean; // Exibir na lista principal
-  showInHorizontal?: boolean; // Exibir na lista "Mais Aventuras"
+  dripDays?: number;
+  showInVertical?: boolean;
+  showInHorizontal?: boolean;
 }
 
 export interface Media {
@@ -28,6 +28,7 @@ export interface Media {
   type: 'video' | 'image' | 'link';
   url: string;
   title: string;
+  description?: string; // Novo campo
 }
 
 export interface Announcement {

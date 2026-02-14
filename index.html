@@ -24,21 +24,9 @@
       }
       .font-logo { font-family: 'Lilita One', cursive; }
       
-      .input-premium {
-        background: var(--bg-soft);
-        border: 2px solid transparent;
-        transition: all 0.3s ease;
-      }
-      .input-premium:focus {
-        border-color: var(--english-blue);
-        background: #FFFFFF;
-        box-shadow: 0 10px 25px -5px rgba(61, 90, 254, 0.1);
-      }
-      
       .hide-scrollbar::-webkit-scrollbar { display: none; }
       .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
-      /* Botão Estilo iOS/Moderno */
       .btn-modern {
         display: flex;
         align-items: center;
@@ -50,6 +38,9 @@
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       }
       .btn-modern:active { transform: scale(0.96); opacity: 0.9; }
+
+      /* Ajustes para GitHub Pages */
+      #root { min-height: 100vh; }
     </style>
     <script type="importmap">
     {
@@ -64,5 +55,6 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>
