@@ -1,23 +1,22 @@
 
 import { AppData, User, Module, Media, AppSettings, Announcement } from './types';
 
-const DB_NAME = 'KidsEnglishDB';
+const DB_NAME = 'KidsEnglishDB_v3'; // Versão incrementada para forçar atualização no deploy
 const STORE_NAME = 'app_data';
 const DATA_KEY = 'root_data';
-const STORAGE_KEY_OLD = 'kids_english_db';
 
 const initialData: AppData = {
   users: [
-    { phone: "98988650771", active: true, name: "Joãozinho", createdAt: new Date().toISOString() }
+    { phone: "98988650771", active: true, name: "Admin João", createdAt: new Date().toISOString() }
   ],
   modules: [
-    { id: "1", title: "Histórias em inglês", category: "historias", order: 1, active: true, icon: "📚", description: "Contos mágicos para aprender brincando", banner: "" },
+    { id: "1", title: "Welcome Stories", category: "historias", order: 1, active: true, icon: "📚", description: "First steps into English adventures!", banner: "" },
   ],
   media: [
-    { id: "m1", moduleId: "1", type: "video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", title: "The Magic Forest Story", description: "Uma jornada incrível por uma floresta encantada onde os animais falam inglês!" }
+    { id: "m1", moduleId: "1", type: "video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", title: "Let's Begin!", description: "Watch this video to start your journey." }
   ],
   announcements: [
-    { id: "a1", text: "Bem-vindos à nova plataforma! 🚀", active: true, date: new Date().toISOString() }
+    { id: "a1", text: "Welcome to KidsEnglish! 🚀", active: true, date: new Date().toISOString() }
   ],
   settings: {
     appName: "KidsEnglish",
@@ -32,53 +31,57 @@ const initialData: AppData = {
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    try {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    } catch (e) {
+      reject(e);
+    }
   });
 };
 
 export const getDb = async (): Promise<AppData> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(DATA_KEY);
-    request.onsuccess = () => {
-      if (request.result) {
-        resolve(request.result as AppData);
-      } else {
-        const oldData = localStorage.getItem(STORAGE_KEY_OLD);
-        if (oldData) {
-          try {
-            const parsed = JSON.parse(oldData);
-            localStorage.removeItem(STORAGE_KEY_OLD);
-            saveDb(parsed).then(() => resolve(parsed));
-            return;
-          } catch(e) {}
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(DATA_KEY);
+      request.onsuccess = () => {
+        if (request.result) {
+          resolve(request.result as AppData);
+        } else {
+          saveDb(initialData).then(() => resolve(initialData));
         }
-        saveDb(initialData).then(() => resolve(initialData));
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.error("Erro IndexedDB, retornando initialData", e);
+    return initialData;
+  }
 };
 
 export const saveDb = async (data: AppData): Promise<boolean> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(data, DATA_KEY);
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => resolve(false);
-  });
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(data, DATA_KEY);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    return false;
+  }
 };
 
 export const updateSettings = async (settings: AppSettings) => {
