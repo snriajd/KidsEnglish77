@@ -72,6 +72,9 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }: { isOpen:
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  
   const [data, setData] = useState<AppData | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'modules' | 'users' | 'design' | 'announcements' | 'system'>('dashboard');
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
@@ -100,7 +103,6 @@ export const AdminPanel: React.FC = () => {
       const { id, type } = confirmDelete;
       if (type === 'module') await removeModule(id);
       else if (type === 'user') await removeUser(id);
-      else if (type === 'media') await removeMedia(id);
       else if (type === 'announcement') await removeAnnouncement(id);
       
       setConfirmDelete(null);
@@ -123,6 +125,42 @@ export const AdminPanel: React.FC = () => {
       setNewAnnouncement('');
       await loadDb();
       showToast('Aviso publicado!');
+  };
+
+  // --- Image Upload Handlers ---
+  const handleImageToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const onBannerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const base64 = await handleImageToBase64(file);
+        setModuleForm(prev => ({ ...prev, banner: base64 }));
+        showToast('Imagem da capa carregada!');
+      } catch (err) {
+        showToast('Erro ao carregar imagem', 'error');
+      }
+    }
+  };
+
+  const onLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && settingsForm) {
+      try {
+        const base64 = await handleImageToBase64(file);
+        setSettingsForm({ ...settingsForm, logoUrl: base64 });
+        showToast('Logo atualizado!');
+      } catch (err) {
+        showToast('Erro ao carregar logo', 'error');
+      }
+    }
   };
 
   const handleImportClick = () => { fileInputRef.current?.click(); };
@@ -167,7 +205,10 @@ export const AdminPanel: React.FC = () => {
         onCancel={() => setConfirmDelete(null)} 
       />
 
+      {/* Hidden inputs for uploads */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+      <input type="file" ref={bannerInputRef} onChange={onBannerFileChange} accept="image/*" className="hidden" />
+      <input type="file" ref={logoInputRef} onChange={onLogoFileChange} accept="image/*" className="hidden" />
 
       {/* --- SIDEBAR ÚNICA E RESPONSIVA --- */}
       <aside className={`
@@ -284,9 +325,14 @@ export const AdminPanel: React.FC = () => {
                                         <div className="bg-slate-50 rounded-2xl p-6 border-2 border-dashed border-slate-200 text-center">
                                             {moduleForm.banner ? <img src={moduleForm.banner} className="w-full aspect-video rounded-xl object-cover mb-4" /> : <div className="text-2xl mb-2 opacity-20">🖼️</div>}
                                             <div className="space-y-1">
-                                                <button className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Alterar Capa</button>
+                                                <button 
+                                                  onClick={() => bannerInputRef.current?.click()}
+                                                  className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:underline"
+                                                >
+                                                  Alterar Capa
+                                                </button>
                                                 <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                                                    Vertical: 1200x514 (21:9)<br/>Horizontal: 800x600 (4:3)
+                                                    Formatos aceitos: JPG, PNG, WEBP
                                                 </p>
                                             </div>
                                         </div>
@@ -388,19 +434,34 @@ export const AdminPanel: React.FC = () => {
 
                   {/* DESIGN TAB */}
                   {activeTab === 'design' && settingsForm && (
-                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 space-y-8 animate-in fade-in duration-300">
+                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 space-y-10 animate-in fade-in duration-300">
                           <div className="grid md:grid-cols-2 gap-8">
+                              <div className="space-y-6">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Branding Visual</label>
+                                  <div className="flex items-center gap-6 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                                      <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden shadow-inner">
+                                          {settingsForm.logoUrl ? <img src={settingsForm.logoUrl} className="w-full h-full object-contain" /> : <span className="text-2xl grayscale opacity-30">🖼️</span>}
+                                      </div>
+                                      <div className="space-y-2">
+                                          <button 
+                                            onClick={() => logoInputRef.current?.click()}
+                                            className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:underline"
+                                          >
+                                            Alterar Logo
+                                          </button>
+                                          <p className="text-[8px] text-slate-400 font-bold uppercase">PNG Transparente recomendado</p>
+                                      </div>
+                                  </div>
+                              </div>
                               <div className="space-y-4">
                                   <label className="text-[10px] font-black text-slate-400 uppercase">Nome da Plataforma</label>
                                   <input value={settingsForm.appName} onChange={e => setSettingsForm({...settingsForm, appName: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
-                              </div>
-                              <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase">Frase do Rodapé (Membros)</label>
+                                  <label className="text-[10px] font-black text-slate-400 uppercase mt-4 block">Frase do Rodapé (Membros)</label>
                                   <input value={settingsForm.footerText} onChange={e => setSettingsForm({...settingsForm, footerText: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
                               </div>
                           </div>
                           <div className="pt-4">
-                              <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Aparência atualizada!'); }} className="w-full sm:w-auto bg-emerald-500 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10">Salvar Estilo</button>
+                              <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Aparência atualizada!'); }} className="w-full sm:w-auto bg-emerald-500 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">Salvar Estilo Visual</button>
                           </div>
                       </div>
                   )}
