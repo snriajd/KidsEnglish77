@@ -34,7 +34,8 @@ const initialData: AppData = {
     showAdminLink: true,
     maintenanceMode: false,
     horizontalSectionTitle: "Mais Aventuras",
-    footerText: "KIDSENGLISH PREMIUM"
+    footerText: "KIDSENGLISH PREMIUM",
+    moduleDesignTheme: 'modern-glass'
   }
 };
 

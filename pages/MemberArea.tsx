@@ -91,7 +91,9 @@ export const MemberArea: React.FC = () => {
 
   const allActiveModules = data.modules
     .filter(m => {
-      if (!m.active) return false;
+      // Correção crítica: Se 'active' for undefined (módulos antigos), considera true. Só esconde se for false explicitamente.
+      if (m.active === false) return false;
+      
       if (isPreview) return true;
       
       const userJoinDate = new Date(user.createdAt).getTime();

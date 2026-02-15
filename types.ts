@@ -51,11 +51,12 @@ export interface AppSettings {
   loginTitle: string;
   loginSubtitle: string;
   adminLoginTitle: string;
-  adminLoginSubtitle?: string; // Novo
-  showAdminLink?: boolean; // Novo
+  adminLoginSubtitle?: string;
+  showAdminLink?: boolean;
   maintenanceMode: boolean;
   horizontalSectionTitle: string; 
   footerText: string;
+  moduleDesignTheme?: 'modern-glass' | 'playful-kids' | 'cinema-dark' | 'minimal-list' | 'gamer-grid'; // Novo
 }
 
 export interface AppData {
