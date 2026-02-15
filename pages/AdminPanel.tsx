@@ -37,7 +37,7 @@ const ToggleSwitch = ({ checked, onChange, label }: { checked: boolean, onChange
   </div>
 );
 
-const StatCard = ({ label, value, trend, icon }: { label: string, value: string | number, trend: string, icon: string }) => (
+const StatCard = ({ label, value, icon }: { label: string, value: string | number, icon: string }) => (
   <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
     <div className="flex items-center justify-between">
         <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
@@ -47,9 +47,6 @@ const StatCard = ({ label, value, trend, icon }: { label: string, value: string 
     </div>
     <div className="flex items-end justify-between mt-1">
         <h4 className="text-2xl font-black text-slate-800 tracking-tight">{value}</h4>
-        <span className={`text-[10px] font-bold flex items-center gap-1 ${trend.includes('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-            {trend.includes('+') ? '↗' : '↘'} {trend}
-        </span>
     </div>
   </div>
 );
@@ -79,12 +76,11 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'modules' | 'users' | 'design' | 'announcements' | 'system'>('dashboard');
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: string } | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // States for Editing
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [moduleForm, setModuleForm] = useState<Partial<Module>>({});
-  const [mediaForm, setMediaForm] = useState<Partial<Media>>({ type: 'video' });
-  const [isAddingLesson, setIsAddingLesson] = useState(false);
   const [settingsForm, setSettingsForm] = useState<AppSettings | null>(null);
   const [userForm, setUserForm] = useState({ phone: '', name: '' });
   const [newAnnouncement, setNewAnnouncement] = useState('');
@@ -129,14 +125,11 @@ export const AdminPanel: React.FC = () => {
       showToast('Aviso publicado!');
   };
 
-  const handleImportClick = () => {
-      fileInputRef.current?.click();
-  };
+  const handleImportClick = () => { fileInputRef.current?.click(); };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = async (e) => {
           const content = e.target?.result as string;
@@ -154,8 +147,17 @@ export const AdminPanel: React.FC = () => {
 
   if (!data) return null;
 
+  const navItems = [
+    { id: 'dashboard', label: 'Visão Geral', icon: '📊', category: 'Marketing' },
+    { id: 'users', label: 'Gestão de Alunos', icon: '👥', category: 'Marketing' },
+    { id: 'modules', label: 'Módulos & Aulas', icon: '📚', category: 'Conteúdo' },
+    { id: 'announcements', label: 'Avisos do Topo', icon: '📢', category: 'Conteúdo' },
+    { id: 'design', label: 'Estilo do App', icon: '🎨', category: 'Ajustes' },
+    { id: 'system', label: 'Infraestrutura', icon: '⚙️', category: 'Ajustes' },
+  ];
+
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-600 font-sans selection:bg-emerald-100 overflow-hidden">
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-600 font-sans selection:bg-emerald-100 overflow-hidden relative">
       
       <ConfirmModal 
         isOpen={!!confirmDelete} 
@@ -165,92 +167,79 @@ export const AdminPanel: React.FC = () => {
         onCancel={() => setConfirmDelete(null)} 
       />
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        accept=".json" 
-        className="hidden" 
-      />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
 
-      {/* --- SIDEBAR 1: ICON BAR --- */}
-      <aside className="w-[72px] bg-slate-900 flex flex-col items-center py-8 gap-8 border-r border-slate-800 z-50">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl font-black shadow-lg shadow-emerald-900/40 cursor-pointer" onClick={() => setActiveTab('dashboard')}>K</div>
-          <nav className="flex flex-col gap-4">
-              {[
-                {id: 'dashboard', icon: '📊'},
-                {id: 'modules', icon: '📚'},
-                {id: 'users', icon: '👥'},
-                {id: 'design', icon: '🎨'},
-                {id: 'announcements', icon: '📢'},
-                {id: 'system', icon: '⚙️'}
-              ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${activeTab === item.id ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-500 hover:bg-slate-800'}`}>
-                    <span className="text-xl">{item.icon}</span>
-                </button>
+      {/* --- SIDEBAR ÚNICA E RESPONSIVA --- */}
+      <aside className={`
+        fixed md:relative z-[200] h-full w-72 bg-slate-900 flex flex-col transition-transform duration-300
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+          <div className="p-8 flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl font-black shadow-lg shadow-emerald-900/40">K</div>
+              <div>
+                  <h2 className="text-white font-black text-lg tracking-tight">KidsEnglish</h2>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60">Admin Hub</p>
+              </div>
+          </div>
+
+          <nav className="flex-1 px-4 py-4 space-y-8 overflow-y-auto hide-scrollbar">
+              {['Marketing', 'Conteúdo', 'Ajustes'].map(cat => (
+                  <div key={cat}>
+                      <p className="px-4 text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3">{cat}</p>
+                      <div className="space-y-1">
+                          {navItems.filter(item => item.category === cat).map(item => (
+                              <button 
+                                  key={item.id}
+                                  onClick={() => { setActiveTab(item.id as any); setIsSidebarOpen(false); }}
+                                  className={`
+                                      w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all
+                                      ${activeTab === item.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+                                  `}
+                              >
+                                  <span className="text-lg">{item.icon}</span>
+                                  {item.label}
+                              </button>
+                          ))}
+                      </div>
+                  </div>
               ))}
           </nav>
-          <div className="mt-auto">
-              <button onClick={() => { localStorage.removeItem('admin_session'); navigate('/admin-login'); }} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-rose-400 transition-colors">🚪</button>
+
+          <div className="p-4 border-t border-slate-800">
+              <button 
+                onClick={() => { localStorage.removeItem('admin_session'); navigate('/admin-login'); }}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-xs font-bold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-all"
+              >
+                  <span>🚪</span> Sair do Painel
+              </button>
           </div>
       </aside>
 
-      {/* --- SIDEBAR 2: CONTEXT BAR --- */}
-      <aside className="w-60 bg-white border-r border-slate-100 flex flex-col">
-          <div className="p-6">
-              <h2 className="text-lg font-black text-slate-800 tracking-tight">KidsEnglish</h2>
-              <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 mt-1">Management Hub</p>
-          </div>
-          <div className="flex-1 px-4 py-2 space-y-6">
-              <div>
-                  <p className="px-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Marketing & Alunos</p>
-                  <div className="space-y-1">
-                      <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>📈 Visão Geral</button>
-                      <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'users' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>👥 Gestão de Alunos</button>
-                  </div>
-              </div>
-              <div>
-                  <p className="px-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Conteúdo</p>
-                  <div className="space-y-1">
-                      <button onClick={() => setActiveTab('modules')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'modules' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>📚 Módulos & Aulas</button>
-                      <button onClick={() => setActiveTab('announcements')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'announcements' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>📢 Avisos do Topo</button>
-                  </div>
-              </div>
-              <div>
-                  <p className="px-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Customização</p>
-                  <div className="space-y-1">
-                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'design' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>🎨 Design do App</button>
-                      <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'system' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'}`}>⚙️ Configurações</button>
-                  </div>
-              </div>
-          </div>
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white">👤</div>
-                  <div>
-                      <p className="text-xs font-bold text-slate-800 leading-none">Admin João</p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Super User</p>
-                  </div>
-              </div>
-          </div>
-      </aside>
+      {/* Mobile Overlay */}
+      {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] md:hidden"></div>}
 
       {/* --- MAIN AREA --- */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-10">
-              <div>
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight capitalize">{activeTab}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold">Admin / {activeTab}</p>
-              </div>
+          
+          <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-10">
               <div className="flex items-center gap-4">
-                  <button onClick={() => navigate('/dashboard?preview=true')} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all">Ver App Aluno</button>
+                  <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">☰</button>
+                  <div className="hidden sm:block">
+                      <h3 className="text-xl font-black text-slate-800 tracking-tight capitalize">{activeTab}</h3>
+                      <p className="text-[10px] text-slate-400 font-bold">Admin / {activeTab}</p>
+                  </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                  <button onClick={() => navigate('/dashboard?preview=true')} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all whitespace-nowrap">Ver App Aluno</button>
               </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-10 hide-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 md:p-10 hide-scrollbar">
               <div className="max-w-6xl mx-auto space-y-10">
+
                   {notification && (
-                      <div className={`fixed top-24 right-10 z-[100] px-6 py-3 rounded-xl shadow-xl border animate-in slide-in-from-right-4 ${notification.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+                      <div className={`fixed top-24 right-6 md:right-10 z-[300] px-6 py-3 rounded-xl shadow-xl border animate-in slide-in-from-right-4 ${notification.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
                           <span className="text-[10px] font-black uppercase tracking-widest">{notification.msg}</span>
                       </div>
                   )}
@@ -258,28 +247,32 @@ export const AdminPanel: React.FC = () => {
                   {/* DASHBOARD TAB */}
                   {activeTab === 'dashboard' && (
                     <div className="space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <StatCard label="Alunos Ativos" value={data.users.length} trend="+2.5%" icon="👥" />
-                            <StatCard label="Módulos" value={data.modules.length} trend="0.0%" icon="📚" />
-                            <StatCard label="Aulas" value={data.media.length} trend="+12%" icon="▶️" />
-                            <StatCard label="Avisos" value={data.announcements.length} icon="📢" trend="-" />
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                            <StatCard label="Alunos" value={data.users.length} icon="👥" />
+                            <StatCard label="Módulos" value={data.modules.length} icon="📚" />
+                            <StatCard label="Aulas" value={data.media.length} icon="▶️" />
+                            <StatCard label="Avisos" value={data.announcements.length} icon="📢" />
+                        </div>
+                        <div className="bg-emerald-500 rounded-[2.5rem] p-8 text-white">
+                            <h4 className="text-lg font-black tracking-tight mb-2">Bem-vindo, Professor! 🚀</h4>
+                            <p className="text-white/80 text-xs font-bold max-w-md">Seu painel está pronto para novas aventuras de inglês. Gerencie alunos e conteúdos com facilidade.</p>
                         </div>
                     </div>
                   )}
 
                   {/* MODULES TAB */}
                   {activeTab === 'modules' && (
-                    <div className="space-y-8">
+                    <div className="space-y-8 animate-in fade-in duration-300">
                         {editingModuleId ? (
-                            <div className="bg-white rounded-[2rem] border border-slate-100 p-10 max-w-4xl mx-auto shadow-sm">
-                                <div className="flex items-center gap-4 mb-10">
+                            <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-10 max-w-4xl mx-auto shadow-sm">
+                                <div className="flex items-center gap-4 mb-8">
                                     <button onClick={() => setEditingModuleId(null)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-colors">←</button>
                                     <h4 className="text-xl font-black text-slate-800 tracking-tight">Configurar Módulo</h4>
                                 </div>
-                                <div className="grid md:grid-cols-2 gap-10">
+                                <div className="grid md:grid-cols-2 gap-8 md:gap-10">
                                     <div className="space-y-6">
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Título da Aventura</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Título</label>
                                             <input value={moduleForm.title || ''} onChange={e => setModuleForm({...moduleForm, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-5 py-4 text-sm font-bold text-slate-700 outline-none" />
                                         </div>
                                         <div>
@@ -293,7 +286,7 @@ export const AdminPanel: React.FC = () => {
                                             <div className="space-y-1">
                                                 <button className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Alterar Capa</button>
                                                 <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                                                    Vertical: 1200x514 | Horizontal: 800x600
+                                                    Vertical: 1200x514 (21:9)<br/>Horizontal: 800x600 (4:3)
                                                 </p>
                                             </div>
                                         </div>
@@ -303,43 +296,52 @@ export const AdminPanel: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={handleModuleSave} className="w-full mt-10 bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-emerald-500/20 transition-all">Salvar Módulo</button>
+                                <button onClick={handleModuleSave} className="w-full mt-10 bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all">Salvar Alterações</button>
                             </div>
                         ) : (
                             <>
-                            <div className="flex justify-between items-end">
-                                <h4 className="text-xl font-black text-slate-800 tracking-tight">Conteúdos</h4>
-                                <button onClick={() => { setEditingModuleId('new'); setModuleForm({ showInVertical: true }); }} className="bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-lg shadow-slate-900/20 transition-all hover:scale-[1.02]">+ Novo Módulo</button>
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                                <div>
+                                    <h4 className="text-xl font-black text-slate-800 tracking-tight">Conteúdos</h4>
+                                    <p className="text-xs text-slate-400">Total de {data.modules.length} aventuras criadas.</p>
+                                </div>
+                                <button onClick={() => { setEditingModuleId('new'); setModuleForm({ showInVertical: true }); }} className="bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-bold w-full sm:w-auto">+ Novo Módulo</button>
                             </div>
                             <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Módulo</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Aulas</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {data.modules.map(module => (
-                                            <tr key={module.id} className="hover:bg-slate-50/30 transition-colors">
-                                                <td className="px-8 py-6 flex items-center gap-4">
-                                                    <div className="w-10 h-8 rounded bg-slate-100 overflow-hidden">
-                                                        {module.banner && <img src={module.banner} className="w-full h-full object-cover" />}
-                                                    </div>
-                                                    <span className="text-sm font-bold text-slate-800">{module.title}</span>
-                                                </td>
-                                                <td className="px-8 py-6 text-xs font-bold text-slate-500">{data.media.filter(m => m.moduleId === module.id).length} aulas</td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button onClick={() => { setEditingModuleId(module.id); setModuleForm(module); }} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs">✎</button>
-                                                        <button onClick={() => setConfirmDelete({ id: module.id, type: 'module' })} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs text-rose-500">🗑️</button>
-                                                    </div>
-                                                </td>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left min-w-[500px]">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Módulo</th>
+                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Aulas</th>
+                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {data.modules.map(module => (
+                                                <tr key={module.id} className="hover:bg-slate-50/30 transition-colors">
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-8 rounded bg-slate-100 overflow-hidden flex-shrink-0">
+                                                                {module.banner && <img src={module.banner} className="w-full h-full object-cover" />}
+                                                            </div>
+                                                            <span className="text-sm font-bold text-slate-800 truncate">{module.title}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="text-xs font-bold text-slate-500">{data.media.filter(m => m.moduleId === module.id).length} aulas</span>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => { setEditingModuleId(module.id); setModuleForm(module); }} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs">✎</button>
+                                                            <button onClick={() => setConfirmDelete({ id: module.id, type: 'module' })} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs text-rose-500">🗑️</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                             </>
                         )}
@@ -358,96 +360,101 @@ export const AdminPanel: React.FC = () => {
                             </div>
                         </div>
                         <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50/50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Aluno</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">WhatsApp</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {data.users.map(user => (
-                                        <tr key={user.phone}>
-                                            <td className="px-8 py-6 text-sm font-bold text-slate-800">{user.name}</td>
-                                            <td className="px-8 py-6 text-xs font-bold text-slate-500 font-mono">{user.phone}</td>
-                                            <td className="px-8 py-6 text-right">
-                                                <button onClick={() => setConfirmDelete({ id: user.phone, type: 'user' })} className="text-xs font-bold text-rose-500 hover:underline">Remover</button>
-                                            </td>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left min-w-[400px]">
+                                    <thead className="bg-slate-50/50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Aluno</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">WhatsApp</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-right">Ações</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {data.users.map(user => (
+                                            <tr key={user.phone}>
+                                                <td className="px-8 py-6 text-sm font-bold text-slate-800">{user.name}</td>
+                                                <td className="px-8 py-6 text-xs font-bold text-slate-500 font-mono">{user.phone}</td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <button onClick={() => setConfirmDelete({ id: user.phone, type: 'user' })} className="text-xs font-bold text-rose-500 hover:underline">Remover</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
+                  )}
+
+                  {/* DESIGN TAB */}
+                  {activeTab === 'design' && settingsForm && (
+                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 space-y-8 animate-in fade-in duration-300">
+                          <div className="grid md:grid-cols-2 gap-8">
+                              <div className="space-y-4">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase">Nome da Plataforma</label>
+                                  <input value={settingsForm.appName} onChange={e => setSettingsForm({...settingsForm, appName: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
+                              </div>
+                              <div className="space-y-4">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase">Frase do Rodapé (Membros)</label>
+                                  <input value={settingsForm.footerText} onChange={e => setSettingsForm({...settingsForm, footerText: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
+                              </div>
+                          </div>
+                          <div className="pt-4">
+                              <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Aparência atualizada!'); }} className="w-full sm:w-auto bg-emerald-500 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10">Salvar Estilo</button>
+                          </div>
+                      </div>
+                  )}
+
+                  {/* ANNOUNCEMENTS TAB */}
+                  {activeTab === 'announcements' && (
+                      <div className="space-y-6 animate-in fade-in duration-300">
+                          <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col sm:flex-row gap-4">
+                              <input placeholder="Digite o novo comunicado aqui..." className="flex-1 bg-slate-50 px-5 py-4 rounded-xl text-xs font-bold outline-none" value={newAnnouncement} onChange={e => setNewAnnouncement(e.target.value)} />
+                              <button onClick={handleAddAnnouncement} className="bg-emerald-500 text-white px-10 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10">Publicar</button>
+                          </div>
+                          <div className="space-y-3">
+                              {data.announcements.map(ann => (
+                                  <div key={ann.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between shadow-sm">
+                                      <p className="text-sm font-bold text-slate-800 truncate pr-4">{ann.text}</p>
+                                      <div className="flex items-center gap-4 flex-shrink-0">
+                                          <ToggleSwitch checked={ann.active} onChange={() => { toggleAnnouncement(ann.id); loadDb(); }} label="" />
+                                          <button onClick={() => setConfirmDelete({id: ann.id, type: 'announcement'})} className="w-9 h-9 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
                   )}
 
                   {/* SYSTEM TAB */}
                   {activeTab === 'system' && (
-                    <div className="space-y-8">
-                        <h4 className="text-xl font-black text-slate-800 tracking-tight">Infraestrutura & Segurança</h4>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 space-y-4 flex flex-col justify-between">
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
                                 <div>
-                                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Download Backup</h5>
-                                    <p className="text-[10px] text-slate-400 font-bold mb-6">Baixe seus dados para segurança extra ou migração.</p>
+                                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Backup Completo</h5>
+                                    <p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Baixe uma cópia de todos os seus módulos e alunos em arquivo JSON.</p>
                                 </div>
-                                <button onClick={async () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([await exportData()], {type:'application/json'})); a.download=`kidsenglish_backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); }} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs shadow-lg shadow-slate-900/10">Baixar Agora</button>
+                                <button onClick={async () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([await exportData()], {type:'application/json'})); a.download=`kidsenglish_db_${new Date().toISOString().split('T')[0]}.json`; a.click(); }} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs">Baixar Banco (.json)</button>
                             </div>
-
-                            <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 space-y-4 flex flex-col justify-between">
+                            <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
                                 <div>
-                                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Upload Backup</h5>
-                                    <p className="text-[10px] text-slate-400 font-bold mb-6">Suba um arquivo de backup para restaurar dados.</p>
+                                    <h5 className="text-xs font-black text-emerald-500 uppercase tracking-widest mb-2">Restaurar Dados</h5>
+                                    <p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Suba um arquivo de backup anterior para restaurar as informações.</p>
                                 </div>
-                                <button onClick={handleImportClick} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/10">Subir Backup</button>
+                                <button onClick={handleImportClick} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-bold text-xs">Subir Banco (.json)</button>
                             </div>
-
-                            <div className="bg-rose-50 border border-rose-100 rounded-[2.5rem] p-8 space-y-4 flex flex-col justify-between">
+                            <div className="bg-rose-50 border border-rose-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
                                 <div>
-                                    <h5 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-2">Reset da Fábrica</h5>
-                                    <p className="text-[10px] text-rose-400 font-bold mb-6">CUIDADO: Apaga tudo e volta aos dados iniciais.</p>
+                                    <h5 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-2">Zerar Tudo</h5>
+                                    <p className="text-[10px] text-rose-400 font-bold mb-8 leading-relaxed">Cuidado: Esta ação apaga permanentemente todos os seus dados.</p>
                                 </div>
-                                <button onClick={async () => { if (prompt('Isso apagará TUDO. Digite "RESETAR" para confirmar:') === 'RESETAR') { await resetDb(); window.location.reload(); } }} className="w-full py-4 bg-rose-500 text-white rounded-xl font-bold text-xs">Resetar Tudo</button>
+                                <button onClick={async () => { if (prompt('CUIDADO: Isso apagará TUDO. Digite "RESETAR" para confirmar:') === 'RESETAR') { await resetDb(); window.location.reload(); } }} className="w-full py-4 bg-rose-500 text-white rounded-xl font-bold text-xs">Resetar Plataforma</button>
                             </div>
                         </div>
                     </div>
                   )}
 
-                  {/* ANNOUNCEMENTS & DESIGN TABS (Resumidas para brevidade) */}
-                  {activeTab === 'announcements' && (
-                      <div className="space-y-4">
-                          <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex gap-4">
-                              <input placeholder="Novo Aviso..." className="flex-1 bg-slate-50 px-5 py-4 rounded-xl text-xs font-bold outline-none" value={newAnnouncement} onChange={e => setNewAnnouncement(e.target.value)} />
-                              <button onClick={handleAddAnnouncement} className="bg-emerald-500 text-white px-8 py-4 rounded-xl text-xs font-bold">Postar</button>
-                          </div>
-                          {data.announcements.map(ann => (
-                              <div key={ann.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
-                                  <p className="text-sm font-bold text-slate-800">{ann.text}</p>
-                                  <div className="flex items-center gap-4">
-                                      <ToggleSwitch checked={ann.active} onChange={() => { toggleAnnouncement(ann.id); loadDb(); }} label={ann.active ? "Ativo" : "Off"} />
-                                      <button onClick={() => setConfirmDelete({id: ann.id, type: 'announcement'})} className="text-rose-500">🗑️</button>
-                                  </div>
-                              </div>
-                          ))}
-                      </div>
-                  )}
-
-                  {activeTab === 'design' && settingsForm && (
-                      <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 space-y-8">
-                          <div className="grid md:grid-cols-2 gap-8">
-                              <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase">Nome do App</label>
-                                  <input value={settingsForm.appName} onChange={e => setSettingsForm({...settingsForm, appName: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold" />
-                              </div>
-                              <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase">Rodapé da Área do Membro</label>
-                                  <input value={settingsForm.footerText} onChange={e => setSettingsForm({...settingsForm, footerText: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold" />
-                              </div>
-                          </div>
-                          <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Estilo Salvo!'); }} className="bg-emerald-500 text-white px-10 py-4 rounded-xl text-xs font-bold">Salvar Estética</button>
-                      </div>
-                  )}
               </div>
           </div>
       </main>
