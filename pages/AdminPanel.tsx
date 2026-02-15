@@ -67,8 +67,6 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }: { isOpen:
     );
 };
 
-// --- Main Admin Panel ---
-
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +79,6 @@ export const AdminPanel: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: string } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // States for Editing
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [moduleForm, setModuleForm] = useState<Partial<Module>>({});
   const [settingsForm, setSettingsForm] = useState<AppSettings | null>(null);
@@ -127,7 +124,6 @@ export const AdminPanel: React.FC = () => {
       showToast('Aviso publicado!');
   };
 
-  // --- Image Upload Handlers ---
   const handleImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -140,26 +136,18 @@ export const AdminPanel: React.FC = () => {
   const onBannerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      try {
-        const base64 = await handleImageToBase64(file);
-        setModuleForm(prev => ({ ...prev, banner: base64 }));
-        showToast('Imagem da capa carregada!');
-      } catch (err) {
-        showToast('Erro ao carregar imagem', 'error');
-      }
+      const base64 = await handleImageToBase64(file);
+      setModuleForm(prev => ({ ...prev, banner: base64 }));
+      showToast('Capa carregada com sucesso!');
     }
   };
 
   const onLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && settingsForm) {
-      try {
-        const base64 = await handleImageToBase64(file);
-        setSettingsForm({ ...settingsForm, logoUrl: base64 });
-        showToast('Logo atualizado!');
-      } catch (err) {
-        showToast('Erro ao carregar logo', 'error');
-      }
+      const base64 = await handleImageToBase64(file);
+      setSettingsForm({ ...settingsForm, logoUrl: base64 });
+      showToast('Logo carregado com sucesso!');
     }
   };
 
@@ -173,10 +161,10 @@ export const AdminPanel: React.FC = () => {
           const content = e.target?.result as string;
           const success = await importData(content);
           if (success) {
-              showToast('Backup restaurado com sucesso!');
+              showToast('Backup restaurado!');
               setTimeout(() => window.location.reload(), 1000);
           } else {
-              showToast('Arquivo de backup inválido.', 'error');
+              showToast('Arquivo inválido.', 'error');
           }
       };
       reader.readAsText(file);
@@ -190,7 +178,7 @@ export const AdminPanel: React.FC = () => {
     { id: 'users', label: 'Gestão de Alunos', icon: '👥', category: 'Marketing' },
     { id: 'modules', label: 'Módulos & Aulas', icon: '📚', category: 'Conteúdo' },
     { id: 'announcements', label: 'Avisos do Topo', icon: '📢', category: 'Conteúdo' },
-    { id: 'design', label: 'Estilo do App', icon: '🎨', category: 'Ajustes' },
+    { id: 'design', label: 'Personalização', icon: '🎨', category: 'Ajustes' },
     { id: 'system', label: 'Infraestrutura', icon: '⚙️', category: 'Ajustes' },
   ];
 
@@ -200,21 +188,16 @@ export const AdminPanel: React.FC = () => {
       <ConfirmModal 
         isOpen={!!confirmDelete} 
         title="Confirmar Exclusão?" 
-        message="Esta ação é permanente e removerá todos os dados vinculados." 
+        message="Esta ação removerá permanentemente o item." 
         onConfirm={handleExecuteDelete} 
         onCancel={() => setConfirmDelete(null)} 
       />
 
-      {/* Hidden inputs for uploads */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
       <input type="file" ref={bannerInputRef} onChange={onBannerFileChange} accept="image/*" className="hidden" />
       <input type="file" ref={logoInputRef} onChange={onLogoFileChange} accept="image/*" className="hidden" />
 
-      {/* --- SIDEBAR ÚNICA E RESPONSIVA --- */}
-      <aside className={`
-        fixed md:relative z-[200] h-full w-72 bg-slate-900 flex flex-col transition-transform duration-300
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
+      <aside className={`fixed md:relative z-[200] h-full w-72 bg-slate-900 flex flex-col transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <div className="p-8 flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-xl font-black shadow-lg shadow-emerald-900/40">K</div>
               <div>
@@ -229,14 +212,7 @@ export const AdminPanel: React.FC = () => {
                       <p className="px-4 text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3">{cat}</p>
                       <div className="space-y-1">
                           {navItems.filter(item => item.category === cat).map(item => (
-                              <button 
-                                  key={item.id}
-                                  onClick={() => { setActiveTab(item.id as any); setIsSidebarOpen(false); }}
-                                  className={`
-                                      w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all
-                                      ${activeTab === item.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
-                                  `}
-                              >
+                              <button key={item.id} onClick={() => { setActiveTab(item.id as any); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-bold transition-all ${activeTab === item.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                                   <span className="text-lg">{item.icon}</span>
                                   {item.label}
                               </button>
@@ -245,47 +221,30 @@ export const AdminPanel: React.FC = () => {
                   </div>
               ))}
           </nav>
-
           <div className="p-4 border-t border-slate-800">
-              <button 
-                onClick={() => { localStorage.removeItem('admin_session'); navigate('/admin-login'); }}
-                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-xs font-bold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-all"
-              >
-                  <span>🚪</span> Sair do Painel
-              </button>
+              <button onClick={() => { localStorage.removeItem('admin_session'); navigate('/admin-login'); }} className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-xs font-bold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-all"><span>🚪</span> Sair</button>
           </div>
       </aside>
 
-      {/* Mobile Overlay */}
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] md:hidden"></div>}
 
-      {/* --- MAIN AREA --- */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          
           <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-10">
               <div className="flex items-center gap-4">
                   <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">☰</button>
-                  <div className="hidden sm:block">
-                      <h3 className="text-xl font-black text-slate-800 tracking-tight capitalize">{activeTab}</h3>
-                      <p className="text-[10px] text-slate-400 font-bold">Admin / {activeTab}</p>
-                  </div>
+                  <h3 className="hidden sm:block text-xl font-black text-slate-800 tracking-tight capitalize">{activeTab}</h3>
               </div>
-              
-              <div className="flex items-center gap-4">
-                  <button onClick={() => navigate('/dashboard?preview=true')} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all whitespace-nowrap">Ver App Aluno</button>
-              </div>
+              <button onClick={() => navigate('/dashboard?preview=true')} className="bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20">Ver App Aluno</button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 md:p-10 hide-scrollbar">
               <div className="max-w-6xl mx-auto space-y-10">
-
                   {notification && (
                       <div className={`fixed top-24 right-6 md:right-10 z-[300] px-6 py-3 rounded-xl shadow-xl border animate-in slide-in-from-right-4 ${notification.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
                           <span className="text-[10px] font-black uppercase tracking-widest">{notification.msg}</span>
                       </div>
                   )}
 
-                  {/* DASHBOARD TAB */}
                   {activeTab === 'dashboard' && (
                     <div className="space-y-8">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -294,20 +253,15 @@ export const AdminPanel: React.FC = () => {
                             <StatCard label="Aulas" value={data.media.length} icon="▶️" />
                             <StatCard label="Avisos" value={data.announcements.length} icon="📢" />
                         </div>
-                        <div className="bg-emerald-500 rounded-[2.5rem] p-8 text-white">
-                            <h4 className="text-lg font-black tracking-tight mb-2">Bem-vindo, Professor! 🚀</h4>
-                            <p className="text-white/80 text-xs font-bold max-w-md">Seu painel está pronto para novas aventuras de inglês. Gerencie alunos e conteúdos com facilidade.</p>
-                        </div>
                     </div>
                   )}
 
-                  {/* MODULES TAB */}
                   {activeTab === 'modules' && (
-                    <div className="space-y-8 animate-in fade-in duration-300">
+                    <div className="space-y-8">
                         {editingModuleId ? (
                             <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-10 max-w-4xl mx-auto shadow-sm">
                                 <div className="flex items-center gap-4 mb-8">
-                                    <button onClick={() => setEditingModuleId(null)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-colors">←</button>
+                                    <button onClick={() => setEditingModuleId(null)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100">←</button>
                                     <h4 className="text-xl font-black text-slate-800 tracking-tight">Configurar Módulo</h4>
                                 </div>
                                 <div className="grid md:grid-cols-2 gap-8 md:gap-10">
@@ -322,21 +276,24 @@ export const AdminPanel: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="space-y-6">
-                                        <div className="bg-slate-50 rounded-2xl p-6 border-2 border-dashed border-slate-200 text-center">
-                                            {moduleForm.banner ? <img src={moduleForm.banner} className="w-full aspect-video rounded-xl object-cover mb-4" /> : <div className="text-2xl mb-2 opacity-20">🖼️</div>}
-                                            <div className="space-y-1">
-                                                <button 
-                                                  onClick={() => bannerInputRef.current?.click()}
-                                                  className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:underline"
-                                                >
-                                                  Alterar Capa
-                                                </button>
-                                                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                                                    Formatos aceitos: JPG, PNG, WEBP
-                                                </p>
-                                            </div>
+                                        <div 
+                                          onClick={() => bannerInputRef.current?.click()}
+                                          className="bg-slate-50 rounded-2xl p-6 border-2 border-dashed border-slate-200 text-center cursor-pointer hover:bg-slate-100 transition-colors relative overflow-hidden group"
+                                        >
+                                            {moduleForm.banner ? (
+                                              <>
+                                                <img src={moduleForm.banner} className="w-full aspect-video rounded-xl object-cover mb-4" />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest transition-opacity">Trocar Capa</div>
+                                              </>
+                                            ) : (
+                                              <div className="py-8">
+                                                <div className="text-3xl mb-3">🖼️</div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Alterar Capa</p>
+                                                <p className="text-[8px] text-slate-400 font-bold uppercase mt-2">Formatos: JPG, PNG, WEBP</p>
+                                              </div>
+                                            )}
                                         </div>
-                                        <div className="space-y-3">
+                                        <div className="space-y-3 pt-4">
                                             <ToggleSwitch checked={moduleForm.showInVertical ?? true} onChange={v => setModuleForm({...moduleForm, showInVertical: v})} label="Lista Vertical" />
                                             <ToggleSwitch checked={moduleForm.showInHorizontal ?? false} onChange={v => setModuleForm({...moduleForm, showInHorizontal: v})} label="Carrossel Horizontal" />
                                         </div>
@@ -347,175 +304,147 @@ export const AdminPanel: React.FC = () => {
                         ) : (
                             <>
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                                <div>
-                                    <h4 className="text-xl font-black text-slate-800 tracking-tight">Conteúdos</h4>
-                                    <p className="text-xs text-slate-400">Total de {data.modules.length} aventuras criadas.</p>
-                                </div>
+                                <h4 className="text-xl font-black text-slate-800 tracking-tight">Conteúdos</h4>
                                 <button onClick={() => { setEditingModuleId('new'); setModuleForm({ showInVertical: true }); }} className="bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-bold w-full sm:w-auto">+ Novo Módulo</button>
                             </div>
-                            <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left min-w-[500px]">
-                                        <thead>
-                                            <tr className="bg-slate-50/50 border-b border-slate-100">
-                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Módulo</th>
-                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Aulas</th>
-                                                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {data.modules.map(module => (
-                                                <tr key={module.id} className="hover:bg-slate-50/30 transition-colors">
-                                                    <td className="px-8 py-6">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-8 rounded bg-slate-100 overflow-hidden flex-shrink-0">
-                                                                {module.banner && <img src={module.banner} className="w-full h-full object-cover" />}
-                                                            </div>
-                                                            <span className="text-sm font-bold text-slate-800 truncate">{module.title}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-6">
-                                                        <span className="text-xs font-bold text-slate-500">{data.media.filter(m => m.moduleId === module.id).length} aulas</span>
-                                                    </td>
-                                                    <td className="px-8 py-6 text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button onClick={() => { setEditingModuleId(module.id); setModuleForm(module); }} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs">✎</button>
-                                                            <button onClick={() => setConfirmDelete({ id: module.id, type: 'module' })} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs text-rose-500">🗑️</button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            </>
-                        )}
-                    </div>
-                  )}
-
-                  {/* USERS TAB */}
-                  {activeTab === 'users' && (
-                    <div className="space-y-8">
-                        <div className="bg-white rounded-[2rem] border border-slate-100 p-8 shadow-sm">
-                            <h5 className="text-[10px] font-black uppercase text-slate-400 mb-6">Cadastro Rápido</h5>
-                            <div className="flex flex-col md:flex-row gap-4">
-                                <input placeholder="WhatsApp (DDD)" className="flex-1 bg-slate-50 border-none rounded-xl px-5 py-4 text-xs font-bold outline-none" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
-                                <input placeholder="Nome" className="flex-1 bg-slate-50 border-none rounded-xl px-5 py-4 text-xs font-bold outline-none" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
-                                <button onClick={async () => { await addUser({ phone: userForm.phone.replace(/\D/g, ''), name: userForm.name || 'Aluno', active: true }); setUserForm({ phone: '', name: '' }); loadDb(); showToast('Aluno cadastrado!'); }} className="bg-emerald-500 text-white px-10 py-4 rounded-xl text-xs font-bold">Cadastrar</button>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left min-w-[400px]">
-                                    <thead className="bg-slate-50/50 border-b border-slate-100">
-                                        <tr>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Aluno</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">WhatsApp</th>
+                            <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
+                                <table className="w-full text-left min-w-[500px]">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Módulo</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Aulas</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-right">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {data.users.map(user => (
-                                            <tr key={user.phone}>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-800">{user.name}</td>
-                                                <td className="px-8 py-6 text-xs font-bold text-slate-500 font-mono">{user.phone}</td>
+                                        {data.modules.map(module => (
+                                            <tr key={module.id} className="hover:bg-slate-50/30 transition-colors">
+                                                <td className="px-8 py-6 flex items-center gap-4">
+                                                    <div className="w-10 h-8 rounded bg-slate-100 overflow-hidden flex-shrink-0">
+                                                        {module.banner && <img src={module.banner} className="w-full h-full object-cover" />}
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-800 truncate">{module.title}</span>
+                                                </td>
+                                                <td className="px-8 py-6 text-xs font-bold text-slate-500">{data.media.filter(m => m.moduleId === module.id).length} aulas</td>
                                                 <td className="px-8 py-6 text-right">
-                                                    <button onClick={() => setConfirmDelete({ id: user.phone, type: 'user' })} className="text-xs font-bold text-rose-500 hover:underline">Remover</button>
+                                                    <div className="flex justify-end gap-2">
+                                                        <button onClick={() => { setEditingModuleId(module.id); setModuleForm(module); }} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs">✎</button>
+                                                        <button onClick={() => setConfirmDelete({ id: module.id, type: 'module' })} className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-xs text-rose-500">🗑️</button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
+                            </>
+                        )}
+                    </div>
+                  )}
+
+                  {activeTab === 'design' && settingsForm && (
+                      <div className="space-y-10 animate-in fade-in duration-300">
+                          <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 space-y-10">
+                              <div className="grid md:grid-cols-2 gap-10">
+                                  <div className="space-y-6">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Logo e Identidade</label>
+                                      <div 
+                                        onClick={() => logoInputRef.current?.click()}
+                                        className="flex items-center gap-6 p-6 bg-slate-50 rounded-2xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
+                                      >
+                                          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden">
+                                              {settingsForm.logoUrl ? <img src={settingsForm.logoUrl} className="w-full h-full object-contain" /> : <span className="text-2xl grayscale opacity-30">🖼️</span>}
+                                          </div>
+                                          <div className="space-y-1">
+                                              <button className="text-[10px] font-black uppercase text-emerald-500">Alterar Logo</button>
+                                              <p className="text-[8px] text-slate-400 font-bold uppercase">Click para trocar</p>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div className="space-y-6">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Configurações Gerais</label>
+                                      <input value={settingsForm.appName} onChange={e => setSettingsForm({...settingsForm, appName: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" placeholder="Nome do App" />
+                                      <input value={settingsForm.footerText} onChange={e => setSettingsForm({...settingsForm, footerText: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" placeholder="Rodapé (Membros)" />
+                                  </div>
+                              </div>
+
+                              <div className="border-t border-slate-100 pt-10">
+                                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Personalização das Telas de Login</h5>
+                                  <div className="grid md:grid-cols-2 gap-10">
+                                      <div className="space-y-6 p-6 bg-slate-50 rounded-3xl">
+                                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-4">Login do Aluno</p>
+                                          <input value={settingsForm.loginTitle} onChange={e => setSettingsForm({...settingsForm, loginTitle: e.target.value})} className="w-full bg-white px-5 py-4 rounded-xl font-bold border-none" placeholder="Título do Login" />
+                                          <input value={settingsForm.loginSubtitle} onChange={e => setSettingsForm({...settingsForm, loginSubtitle: e.target.value})} className="w-full bg-white px-5 py-4 rounded-xl font-bold border-none" placeholder="Subtítulo do Login" />
+                                          <ToggleSwitch checked={settingsForm.showAdminLink ?? true} onChange={v => setSettingsForm({...settingsForm, showAdminLink: v})} label="Mostrar link Admin no Login" />
+                                      </div>
+                                      <div className="space-y-6 p-6 bg-slate-900 rounded-3xl">
+                                          <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-4">Login do Administrador</p>
+                                          <input value={settingsForm.adminLoginTitle} onChange={e => setSettingsForm({...settingsForm, adminLoginTitle: e.target.value})} className="w-full bg-white/5 text-white px-5 py-4 rounded-xl font-bold border-none" placeholder="Título Admin Login" />
+                                          <input value={settingsForm.adminLoginSubtitle || ''} onChange={e => setSettingsForm({...settingsForm, adminLoginSubtitle: e.target.value})} className="w-full bg-white/5 text-white px-5 py-4 rounded-xl font-bold border-none" placeholder="Subtítulo Admin Login" />
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              <div className="pt-4 border-t border-slate-100">
+                                  <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Tudo Salvo!'); }} className="w-full sm:w-auto bg-emerald-500 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">Aplicar Personalização</button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+
+                  {activeTab === 'users' && (
+                    <div className="space-y-8">
+                        <div className="bg-white rounded-[2rem] border border-slate-100 p-8 shadow-sm">
+                            <h5 className="text-[10px] font-black text-slate-400 mb-6 uppercase">Cadastro Rápido</h5>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <input placeholder="WhatsApp (DDD)" className="flex-1 bg-slate-50 border-none rounded-xl px-5 py-4 text-xs font-bold outline-none" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
+                                <input placeholder="Nome" className="flex-1 bg-slate-50 border-none rounded-xl px-5 py-4 text-xs font-bold outline-none" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                                <button onClick={async () => { await addUser({ phone: userForm.phone.replace(/\D/g, ''), name: userForm.name || 'Aluno', active: true }); setUserForm({ phone: '', name: '' }); loadDb(); showToast('Aluno cadastrado!'); }} className="bg-emerald-500 text-white px-10 py-4 rounded-xl text-xs font-bold">Cadastrar</button>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
+                            <table className="w-full text-left min-w-[400px]">
+                                <thead className="bg-slate-50/50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Aluno</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">WhatsApp</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {data.users.map(user => (
+                                        <tr key={user.phone}>
+                                            <td className="px-8 py-6 text-sm font-bold text-slate-800">{user.name}</td>
+                                            <td className="px-8 py-6 text-xs font-bold text-slate-500 font-mono">{user.phone}</td>
+                                            <td className="px-8 py-6 text-right">
+                                                <button onClick={() => setConfirmDelete({ id: user.phone, type: 'user' })} className="text-xs font-bold text-rose-500">Remover</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                   )}
 
-                  {/* DESIGN TAB */}
-                  {activeTab === 'design' && settingsForm && (
-                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 space-y-10 animate-in fade-in duration-300">
-                          <div className="grid md:grid-cols-2 gap-8">
-                              <div className="space-y-6">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Branding Visual</label>
-                                  <div className="flex items-center gap-6 p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                                      <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden shadow-inner">
-                                          {settingsForm.logoUrl ? <img src={settingsForm.logoUrl} className="w-full h-full object-contain" /> : <span className="text-2xl grayscale opacity-30">🖼️</span>}
-                                      </div>
-                                      <div className="space-y-2">
-                                          <button 
-                                            onClick={() => logoInputRef.current?.click()}
-                                            className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:underline"
-                                          >
-                                            Alterar Logo
-                                          </button>
-                                          <p className="text-[8px] text-slate-400 font-bold uppercase">PNG Transparente recomendado</p>
-                                      </div>
-                                  </div>
-                              </div>
-                              <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase">Nome da Plataforma</label>
-                                  <input value={settingsForm.appName} onChange={e => setSettingsForm({...settingsForm, appName: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
-                                  <label className="text-[10px] font-black text-slate-400 uppercase mt-4 block">Frase do Rodapé (Membros)</label>
-                                  <input value={settingsForm.footerText} onChange={e => setSettingsForm({...settingsForm, footerText: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-xl font-bold border-none outline-none" />
-                              </div>
-                          </div>
-                          <div className="pt-4">
-                              <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Aparência atualizada!'); }} className="w-full sm:w-auto bg-emerald-500 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">Salvar Estilo Visual</button>
-                          </div>
-                      </div>
-                  )}
-
-                  {/* ANNOUNCEMENTS TAB */}
-                  {activeTab === 'announcements' && (
-                      <div className="space-y-6 animate-in fade-in duration-300">
-                          <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col sm:flex-row gap-4">
-                              <input placeholder="Digite o novo comunicado aqui..." className="flex-1 bg-slate-50 px-5 py-4 rounded-xl text-xs font-bold outline-none" value={newAnnouncement} onChange={e => setNewAnnouncement(e.target.value)} />
-                              <button onClick={handleAddAnnouncement} className="bg-emerald-500 text-white px-10 py-4 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/10">Publicar</button>
-                          </div>
-                          <div className="space-y-3">
-                              {data.announcements.map(ann => (
-                                  <div key={ann.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between shadow-sm">
-                                      <p className="text-sm font-bold text-slate-800 truncate pr-4">{ann.text}</p>
-                                      <div className="flex items-center gap-4 flex-shrink-0">
-                                          <ToggleSwitch checked={ann.active} onChange={() => { toggleAnnouncement(ann.id); loadDb(); }} label="" />
-                                          <button onClick={() => setConfirmDelete({id: ann.id, type: 'announcement'})} className="w-9 h-9 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  )}
-
-                  {/* SYSTEM TAB */}
                   {activeTab === 'system' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                             <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
-                                <div>
-                                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Backup Completo</h5>
-                                    <p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Baixe uma cópia de todos os seus módulos e alunos em arquivo JSON.</p>
-                                </div>
-                                <button onClick={async () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([await exportData()], {type:'application/json'})); a.download=`kidsenglish_db_${new Date().toISOString().split('T')[0]}.json`; a.click(); }} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs">Baixar Banco (.json)</button>
+                                <div><h5 className="text-xs font-black text-slate-400 uppercase mb-2">Exportar Dados</h5><p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Baixe uma cópia JSON de todos os seus módulos e alunos.</p></div>
+                                <button onClick={async () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([await exportData()], {type:'application/json'})); a.download=`kidsenglish_db.json`; a.click(); }} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs">Baixar Backup</button>
                             </div>
                             <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
-                                <div>
-                                    <h5 className="text-xs font-black text-emerald-500 uppercase tracking-widest mb-2">Restaurar Dados</h5>
-                                    <p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Suba um arquivo de backup anterior para restaurar as informações.</p>
-                                </div>
-                                <button onClick={handleImportClick} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-bold text-xs">Subir Banco (.json)</button>
+                                <div><h5 className="text-xs font-black text-emerald-500 uppercase mb-2">Importar Dados</h5><p className="text-[10px] text-slate-400 font-bold mb-8 leading-relaxed">Restaure um backup anterior para a plataforma.</p></div>
+                                <button onClick={handleImportClick} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-bold text-xs">Subir Backup</button>
                             </div>
                             <div className="bg-rose-50 border border-rose-100 rounded-[2.5rem] p-8 flex flex-col justify-between">
-                                <div>
-                                    <h5 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-2">Zerar Tudo</h5>
-                                    <p className="text-[10px] text-rose-400 font-bold mb-8 leading-relaxed">Cuidado: Esta ação apaga permanentemente todos os seus dados.</p>
-                                </div>
-                                <button onClick={async () => { if (prompt('CUIDADO: Isso apagará TUDO. Digite "RESETAR" para confirmar:') === 'RESETAR') { await resetDb(); window.location.reload(); } }} className="w-full py-4 bg-rose-500 text-white rounded-xl font-bold text-xs">Resetar Plataforma</button>
+                                <div><h5 className="text-xs font-black text-rose-500 uppercase mb-2">Resetar</h5><p className="text-[10px] text-rose-400 font-bold mb-8 leading-relaxed">Apaga todos os seus dados e volta aos dados iniciais.</p></div>
+                                <button onClick={async () => { if (prompt('CUIDADO: Isso apagará TUDO. Digite "RESETAR" para confirmar:') === 'RESETAR') { await resetDb(); window.location.reload(); } }} className="w-full py-4 bg-rose-500 text-white rounded-xl font-bold text-xs">Resetar Tudo</button>
                             </div>
                         </div>
                     </div>
                   )}
-
               </div>
           </div>
       </main>

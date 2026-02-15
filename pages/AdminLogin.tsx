@@ -11,7 +11,6 @@ export const AdminLogin: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const navigate = useNavigate();
 
-  // Redireciona automaticamente se já houver sessão e carrega configs
   useEffect(() => {
     const init = async () => {
         const session = localStorage.getItem('admin_session');
@@ -57,9 +56,11 @@ export const AdminLogin: React.FC = () => {
             {settings.logoUrl ? <img src={settings.logoUrl} className="w-10 h-10 object-contain" /> : 'K'}
         </div>
         <h1 className="text-2xl font-black uppercase tracking-[0.4em] text-white">
-            {settings.adminLoginTitle || 'Console Admin'}
+            {settings.adminLoginTitle}
         </h1>
-        <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.6em] mt-3">Segurança Nível 1</p>
+        <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.6em] mt-3">
+          {settings.adminLoginSubtitle || 'Segurança Nível 1'}
+        </p>
       </div>
 
       <div className="w-full max-w-sm bg-white/[0.02] border border-white/[0.05] rounded-[3rem] p-10 shadow-2xl animate-in slide-in-from-bottom-8 duration-1000">
@@ -90,7 +91,7 @@ export const AdminLogin: React.FC = () => {
           <button
             type="submit"
             style={{ backgroundColor: settings.primaryColor }}
-            className="w-full text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-xs uppercase tracking-[0.3em] mt-4 hover:brightness-110"
+            className="w-full text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-xs uppercase tracking-[0.3em] mt-4"
           >
             Autenticar
           </button>

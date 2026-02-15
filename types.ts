@@ -51,9 +51,11 @@ export interface AppSettings {
   loginTitle: string;
   loginSubtitle: string;
   adminLoginTitle: string;
+  adminLoginSubtitle?: string; // Novo
+  showAdminLink?: boolean; // Novo
   maintenanceMode: boolean;
   horizontalSectionTitle: string; 
-  footerText: string; // Nova propriedade para frase do rodapé
+  footerText: string;
 }
 
 export interface AppData {

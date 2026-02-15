@@ -33,7 +33,7 @@ export const UserLogin: React.FC = () => {
           localStorage.setItem('user_session', JSON.stringify(user));
           navigate('/dashboard');
       } catch (e) {
-          setError('Erro ao salvar sessão. Limpe o cache do navegador.');
+          setError('Erro ao salvar sessão.');
       }
     } else {
       setError('Número não cadastrado.');
@@ -42,14 +42,15 @@ export const UserLogin: React.FC = () => {
 
   if (!settings) return <div className="min-h-screen bg-black"></div>;
 
-  // Tela de Manutenção
   if (settings.maintenanceMode) {
      return (
         <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 text-white text-center" style={{ fontFamily: settings.fontFamily }}>
            <div className="text-6xl mb-6 animate-pulse">🛠️</div>
            <h1 className="text-3xl font-black uppercase tracking-widest mb-4">Em Manutenção</h1>
-           <p className="text-slate-400 font-bold max-w-md">Estamos melhorando a plataforma para você. Volte em alguns instantes.</p>
-           <Link to="/admin-login" className="mt-12 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 hover:text-white transition-colors">Acesso Admin</Link>
+           <p className="text-slate-400 font-bold max-w-md">Estamos melhorando a plataforma para você. Volte em breve.</p>
+           {settings.showAdminLink && (
+             <Link to="/admin-login" className="mt-12 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 hover:text-white transition-colors">Acesso Admin</Link>
+           )}
         </div>
      )
   }
@@ -78,10 +79,10 @@ export const UserLogin: React.FC = () => {
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-4">
             <label className="block text-center text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">
-              {settings.loginTitle || "Acesso Exclusivo"}
+              {settings.loginTitle}
             </label>
              <p className="text-[10px] font-black uppercase tracking-[0.6em] text-blue-500/50 text-center -mt-2 mb-4">
-               {settings.loginSubtitle || "Premium Education"}
+               {settings.loginSubtitle}
             </p>
 
             <div className="relative group">
@@ -90,7 +91,7 @@ export const UserLogin: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="WhatsApp com DDD"
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-[2rem] px-8 py-6 text-center text-white font-bold text-xl outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all group-hover:border-white/20"
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-[2rem] px-8 py-6 text-center text-white font-bold text-xl outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all"
                 required
               />
             </div>
@@ -101,20 +102,22 @@ export const UserLogin: React.FC = () => {
           <button
             type="submit"
             style={{ backgroundColor: settings.primaryColor }}
-            className="w-full text-white font-black py-6 rounded-[2rem] text-sm uppercase tracking-[0.3em] shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full text-white font-black py-6 rounded-[2rem] text-sm uppercase tracking-[0.3em] shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all active:scale-95"
           >
             Entrar na Plataforma
           </button>
         </form>
 
-        <div className="text-center pt-8 border-t border-white/[0.05]">
-          <Link 
-            to="/admin-login" 
-            className="text-slate-600 hover:text-blue-400 text-[9px] font-black uppercase tracking-[0.4em] transition-colors"
-          >
-            Acesso Administrativo
-          </Link>
-        </div>
+        {settings.showAdminLink && (
+          <div className="text-center pt-8 border-t border-white/[0.05]">
+            <Link 
+              to="/admin-login" 
+              className="text-slate-600 hover:text-blue-400 text-[9px] font-black uppercase tracking-[0.4em] transition-colors"
+            >
+              Acesso Administrativo
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
