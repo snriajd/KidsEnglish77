@@ -1,10 +1,12 @@
 
 import { AppData, User, Module, Media, AppSettings, Announcement } from './types';
 
-const DB_NAME = 'KidsEnglishDB_v3'; // Versão incrementada para forçar atualização no deploy
+// O nome do banco permanece constante para garantir que os dados persistam entre atualizações de código
+const DB_NAME = 'KidsEnglishDB_v9'; 
 const STORE_NAME = 'app_data';
 const DATA_KEY = 'root_data';
 
+// Dados iniciais - USADOS APENAS NA PRIMEIRA VEZ QUE O APP É ABERTO
 const initialData: AppData = {
   users: [
     { phone: "98988650771", active: true, name: "Admin João", createdAt: new Date().toISOString() }
@@ -25,63 +27,70 @@ const initialData: AppData = {
     titleAlignment: 'start',
     primaryColor: "#1A237E",
     accentColor: "#3D5AFE",
-    headerSpacing: 48
+    backgroundColor: "#FFFFFF",
+    headerSpacing: 48,
+    loginTitle: "Acesso Exclusivo",
+    loginSubtitle: "Premium Education",
+    adminLoginTitle: "Console Admin",
+    maintenanceMode: false,
+    horizontalSectionTitle: "Mais Aventuras",
+    footerText: "KIDSENGLISH PREMIUM"
   }
 };
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    try {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    } catch (e) {
-      reject(e);
-    }
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 };
 
+/**
+ * RECUPERA DADOS: Esta função é a chave. 
+ * Ela prioriza o que está no banco do navegador.
+ */
 export const getDb = async (): Promise<AppData> => {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(DATA_KEY);
-      request.onsuccess = () => {
-        if (request.result) {
-          resolve(request.result as AppData);
-        } else {
-          saveDb(initialData).then(() => resolve(initialData));
-        }
-      };
-      request.onerror = () => reject(request.error);
-    });
-  } catch (e) {
-    console.error("Erro IndexedDB, retornando initialData", e);
-    return initialData;
-  }
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(DATA_KEY);
+    request.onsuccess = () => {
+      if (request.result) {
+        // SE EXISTIR DADO, RETORNA O DADO DO USUÁRIO
+        const data = request.result as AppData;
+        data.modules.sort((a, b) => a.order - b.order);
+        resolve(data);
+      } else {
+        // SE NÃO EXISTIR NADA (PRIMEIRA VEZ), SALVA E RETORNA OS INICIAIS
+        saveDb(initialData).then(() => resolve(initialData));
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
 };
 
 export const saveDb = async (data: AppData): Promise<boolean> => {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(data, DATA_KEY);
-      request.onsuccess = () => resolve(true);
-      request.onerror = () => reject(request.error);
-    });
-  } catch (e) {
-    return false;
-  }
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    // Garantimos que estamos salvando uma cópia limpa dos dados
+    const request = store.put(JSON.parse(JSON.stringify(data)), DATA_KEY);
+    request.onsuccess = () => resolve(true);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const resetDb = async (): Promise<void> => {
+    await saveDb(initialData);
 };
 
 export const updateSettings = async (settings: AppSettings) => {
@@ -100,15 +109,6 @@ export const removeAnnouncement = async (id: string) => {
   const db = await getDb();
   db.announcements = db.announcements.filter(a => a.id !== id);
   await saveDb(db);
-};
-
-export const updateAnnouncement = async (id: string, text: string) => {
-  const db = await getDb();
-  const ann = db.announcements.find(a => a.id === id);
-  if (ann) {
-    ann.text = text;
-    await saveDb(db);
-  }
 };
 
 export const toggleAnnouncement = async (id: string) => {
@@ -138,7 +138,33 @@ export const updateModule = async (updatedModule: Module) => {
 export const removeModule = async (id: string) => {
   const db = await getDb();
   db.modules = db.modules.filter(m => m.id !== id);
-  db.media = db.media.filter(m => m.moduleId !== id); 
+  db.media = db.media.filter(m => m.moduleId === id ? false : true); 
+  await saveDb(db);
+  return true;
+};
+
+export const reorderModule = async (moduleId: string, direction: 'up' | 'down') => {
+  const db = await getDb();
+  const index = db.modules.findIndex(m => m.id === moduleId);
+  if (index === -1) return;
+  const newIndex = direction === 'up' ? index - 1 : index + 1;
+  if (newIndex < 0 || newIndex >= db.modules.length) return;
+  const temp = db.modules[index];
+  db.modules[index] = db.modules[newIndex];
+  db.modules[newIndex] = temp;
+  db.modules.forEach((m, i) => m.order = i + 1);
+  await saveDb(db);
+};
+
+export const addMedia = async (media: Omit<Media, 'id'>) => {
+  const db = await getDb();
+  db.media.push({ ...media, id: Date.now().toString() });
+  await saveDb(db);
+};
+
+export const removeMedia = async (id: string) => {
+  const db = await getDb();
+  db.media = db.media.filter(m => m.id !== id);
   await saveDb(db);
 };
 
@@ -148,6 +174,15 @@ export const addUser = async (user: Omit<User, 'createdAt'>) => {
     db.users.push({ ...user, createdAt: new Date().toISOString() });
     await saveDb(db);
   }
+};
+
+export const updateUser = async (originalPhone: string, updates: Partial<User>) => {
+    const db = await getDb();
+    const userIndex = db.users.findIndex(u => u.phone === originalPhone);
+    if (userIndex >= 0) {
+        db.users[userIndex] = { ...db.users[userIndex], ...updates };
+        await saveDb(db);
+    }
 };
 
 export const removeUser = async (phone: string) => {
@@ -174,7 +209,8 @@ export const exportData = async (): Promise<string> => {
 export const importData = async (jsonString: string): Promise<boolean> => {
   try {
     const data = JSON.parse(jsonString) as AppData;
-    if (!data.users || !data.modules || !data.settings) return false;
+    // Validação básica para garantir que o arquivo é um backup do KidsEnglish
+    if (!data.settings || !Array.isArray(data.users)) return false;
     await saveDb(data);
     return true;
   } catch (e) {

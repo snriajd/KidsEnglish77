@@ -20,9 +20,15 @@ export const UserLogin: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!settings) return;
+
+    if (settings.maintenanceMode) {
+      setError('Sistema em manutenção. Tente novamente mais tarde.');
+      return;
+    }
+
     const user = await findUser(phone);
     if (user) {
-      // Agora o localStorage tem espaço para salvar a sessão, pois os dados pesados estão no IndexedDB
       try {
           localStorage.setItem('user_session', JSON.stringify(user));
           navigate('/dashboard');
@@ -35,6 +41,18 @@ export const UserLogin: React.FC = () => {
   };
 
   if (!settings) return <div className="min-h-screen bg-black"></div>;
+
+  // Tela de Manutenção
+  if (settings.maintenanceMode) {
+     return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 text-white text-center" style={{ fontFamily: settings.fontFamily }}>
+           <div className="text-6xl mb-6 animate-pulse">🛠️</div>
+           <h1 className="text-3xl font-black uppercase tracking-widest mb-4">Em Manutenção</h1>
+           <p className="text-slate-400 font-bold max-w-md">Estamos melhorando a plataforma para você. Volte em alguns instantes.</p>
+           <Link to="/admin-login" className="mt-12 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 hover:text-white transition-colors">Acesso Admin</Link>
+        </div>
+     )
+  }
 
   return (
     <div 
@@ -54,15 +72,18 @@ export const UserLogin: React.FC = () => {
             Kids<span style={{ color: settings.accentColor }}>English</span>
           </h1>
         )}
-        <p className="text-[10px] font-black uppercase tracking-[0.6em] text-slate-500 mt-4">Premium Education</p>
       </div>
 
       <div className="w-full max-w-sm space-y-10 animate-in slide-in-from-bottom-8 duration-1000">
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-4">
             <label className="block text-center text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">
-              Acesso Exclusivo
+              {settings.loginTitle || "Acesso Exclusivo"}
             </label>
+             <p className="text-[10px] font-black uppercase tracking-[0.6em] text-blue-500/50 text-center -mt-2 mb-4">
+               {settings.loginSubtitle || "Premium Education"}
+            </p>
+
             <div className="relative group">
               <input
                 type="tel"

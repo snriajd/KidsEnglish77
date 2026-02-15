@@ -28,7 +28,7 @@ export interface Media {
   type: 'video' | 'image' | 'link';
   url: string;
   title: string;
-  description?: string; // Novo campo
+  description?: string;
 }
 
 export interface Announcement {
@@ -46,7 +46,14 @@ export interface AppSettings {
   titleAlignment: 'start' | 'center' | 'end';
   primaryColor: string;
   accentColor: string;
+  backgroundColor: string;
   headerSpacing: number;
+  loginTitle: string;
+  loginSubtitle: string;
+  adminLoginTitle: string;
+  maintenanceMode: boolean;
+  horizontalSectionTitle: string; 
+  footerText: string; // Nova propriedade para frase do rodapé
 }
 
 export interface AppData {

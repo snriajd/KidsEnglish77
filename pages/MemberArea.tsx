@@ -16,6 +16,13 @@ export const MemberArea: React.FC = () => {
       const db = await getDb();
       const session = localStorage.getItem('user_session');
       
+      // Feature Manutenção: Se ativo e não for preview, chuta o user
+      if (db.settings.maintenanceMode && !isPreview) {
+        localStorage.removeItem('user_session');
+        navigate('/');
+        return;
+      }
+
       if (isPreview) {
         setData(db);
         setUser(db.users[0] || { name: 'Preview User', phone: '000', createdAt: new Date().toISOString(), active: true });
@@ -40,30 +47,22 @@ export const MemberArea: React.FC = () => {
   useEffect(() => {
     const handleScroll = () => {
       const cards = document.querySelectorAll('.scroll-card');
-      // Define o ponto de foco (um pouco acima do centro, ideal para mobile)
       const focusPoint = window.innerHeight * 0.3; 
 
       cards.forEach((card) => {
         const rect = card.getBoundingClientRect();
-        // Distância do topo do card até o ponto de foco
         const distanceFromFocus = rect.top - focusPoint;
         
-        // Se estiver perto do foco (ou acima dele até certo ponto), fica nítido
-        // Se estiver muito para baixo, desfoca
         let blur = 0;
         let scale = 1;
         let opacity = 1;
 
         if (distanceFromFocus > 0) {
-            // Está abaixo do ponto de foco (entrando na tela ou lá embaixo)
             const ratio = Math.min(distanceFromFocus / (window.innerHeight * 0.5), 1);
-            
-            // AJUSTE: Blur bem suave (max 2px) e escala mínima
             blur = ratio * 2; 
             scale = 1 - (ratio * 0.03); 
             opacity = 1 - (ratio * 0.3); 
         } else if (distanceFromFocus < -300) {
-            // Está saindo muito pra cima
             const ratio = Math.min(Math.abs(distanceFromFocus + 300) / 200, 1);
             blur = ratio * 2;
             opacity = 1 - (ratio * 0.2);
@@ -78,9 +77,9 @@ export const MemberArea: React.FC = () => {
     };
 
     window.addEventListener('scroll', handleScroll);
-    handleScroll(); // Chama uma vez para inicializar
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [data]); // Recria se os dados mudarem
+  }, [data]);
 
   if (!data || !user) return null;
   const { settings } = data;
@@ -90,7 +89,6 @@ export const MemberArea: React.FC = () => {
     navigate('/');
   };
 
-  // Filtro base: Módulos ativos e liberados pelo drip
   const allActiveModules = data.modules
     .filter(m => {
       if (!m.active) return false;
@@ -102,14 +100,12 @@ export const MemberArea: React.FC = () => {
     })
     .sort((a, b) => a.order - b.order);
 
-  // Lista Vertical: Mostra se showInVertical for true ou undefined (padrão)
   const verticalModules = allActiveModules.filter(m => m.showInVertical !== false);
-  
-  // Lista Horizontal: Mostra apenas se showInHorizontal for true
   const horizontalModules = allActiveModules.filter(m => m.showInHorizontal === true);
 
   return (
-    <div className="bg-white min-h-screen pb-20 selection:bg-blue-50" style={{ fontFamily: settings.fontFamily }}>
+    <div className="min-h-screen pb-20 selection:bg-blue-50 transition-colors duration-500" 
+         style={{ fontFamily: settings.fontFamily, backgroundColor: settings.backgroundColor || '#FFFFFF' }}>
       
       {isPreview && (
         <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white py-4 px-8 flex items-center justify-between sticky top-0 z-[100] font-black text-[10px] uppercase tracking-[0.4em] shadow-xl">
@@ -134,7 +130,7 @@ export const MemberArea: React.FC = () => {
         {!isPreview && (
           <button 
             onClick={handleLogout} 
-            className="absolute top-8 right-8 text-slate-300 hover:text-red-500 transition-all font-black text-[9px] uppercase tracking-[0.3em] bg-slate-50 px-4 py-2 rounded-xl border border-slate-100"
+            className="absolute top-8 right-8 text-slate-300 hover:text-red-500 transition-all font-black text-[9px] uppercase tracking-[0.3em] bg-white/50 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-100/50"
           >
             Sair
           </button>
@@ -159,9 +155,8 @@ export const MemberArea: React.FC = () => {
 
       <main className="px-6 max-w-5xl mx-auto mt-4 space-y-16">
         
-        {/* Seção Vertical com Animação */}
         {verticalModules.length === 0 && horizontalModules.length === 0 ? (
-          <div className="text-center py-40 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-100">
+          <div className="text-center py-40 bg-white/30 backdrop-blur-md rounded-[3rem] border-2 border-dashed border-slate-200">
              <div className="text-6xl mb-6 grayscale opacity-20">📚</div>
             <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.4em]">Preparando novas aventuras para você!</p>
           </div>
@@ -171,7 +166,7 @@ export const MemberArea: React.FC = () => {
               <div 
                 key={module.id} 
                 onClick={() => navigate(`/module/${module.id}`)}
-                className="scroll-card group relative w-full aspect-[21/9] rounded-[2.5rem] overflow-hidden cursor-pointer bg-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] active:scale-[0.98] will-change-transform"
+                className="scroll-card group relative w-full aspect-[21/9] rounded-[2.5rem] overflow-hidden cursor-pointer bg-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] active:scale-[0.98] will-change-transform"
               >
                 {module.banner ? (
                   <img 
@@ -190,16 +185,17 @@ export const MemberArea: React.FC = () => {
           </div>
         )}
 
-        {/* Nova Seção Horizontal (Só aparece se tiver módulos configurados para Horizontal) */}
         {horizontalModules.length > 0 && (
-          <div className="pt-8 border-t border-slate-100">
-            <h3 className="text-slate-800 font-bold text-2xl mb-6 px-2 tracking-tight">Mais Aventuras</h3>
+          <div className="pt-8 border-t border-black/[0.05]">
+            <h3 className="text-slate-800 font-bold text-2xl mb-6 px-2 tracking-tight">
+                {settings.horizontalSectionTitle || 'Mais Aventuras'}
+            </h3>
             <div className="flex gap-5 overflow-x-auto pb-8 px-2 snap-x hide-scrollbar">
               {horizontalModules.map((module) => (
                  <div 
                    key={`hz-${module.id}`}
                    onClick={() => navigate(`/module/${module.id}`)}
-                   className="snap-center shrink-0 w-[260px] md:w-[320px] aspect-[4/3] rounded-[2rem] overflow-hidden bg-slate-100 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform relative"
+                   className="snap-center shrink-0 w-[260px] md:w-[320px] aspect-[4/3] rounded-[2rem] overflow-hidden bg-white shadow-lg cursor-pointer hover:scale-[1.02] transition-transform relative"
                  >
                     {module.banner ? (
                       <img src={module.banner} className="w-full h-full object-cover" />
@@ -218,7 +214,9 @@ export const MemberArea: React.FC = () => {
       </main>
 
       <footer className="mt-24 text-center opacity-10 py-10">
-        <p className="text-[10px] font-black uppercase tracking-[1.5em]">{settings.appName} Premium</p>
+        <p className="text-[10px] font-black uppercase tracking-[1.5em]">
+            {settings.footerText || `${settings.appName} Premium`}
+        </p>
       </footer>
     </div>
   );

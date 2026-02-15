@@ -1,19 +1,28 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getDb } from '../db';
+import { AppSettings } from '../types';
 
 export const AdminLogin: React.FC = () => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const navigate = useNavigate();
 
-  // Redireciona automaticamente se já houver sessão
+  // Redireciona automaticamente se já houver sessão e carrega configs
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (session) {
-      navigate('/admin');
-    }
+    const init = async () => {
+        const session = localStorage.getItem('admin_session');
+        if (session) {
+            navigate('/admin');
+            return;
+        }
+        const db = await getDb();
+        setSettings(db.settings);
+    };
+    init();
   }, [navigate]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -26,8 +35,10 @@ export const AdminLogin: React.FC = () => {
     }
   };
 
+  if (!settings) return null;
+
   return (
-    <div className="bg-black min-h-screen flex flex-col items-center justify-center p-6 text-white font-sans">
+    <div className="bg-black min-h-screen flex flex-col items-center justify-center p-6 text-white font-sans" style={{ fontFamily: settings.fontFamily }}>
       <div className="w-full max-w-sm mb-12 animate-in fade-in duration-500">
         <button 
           onClick={() => navigate('/')}
@@ -39,8 +50,15 @@ export const AdminLogin: React.FC = () => {
       </div>
 
       <div className="mb-12 text-center animate-in zoom-in duration-700">
-        <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center font-logo text-4xl text-white mx-auto mb-6 shadow-[0_0_30px_rgba(37,99,235,0.3)]">K</div>
-        <h1 className="text-2xl font-black uppercase tracking-[0.4em] text-white">Console<span className="text-blue-500">Admin</span></h1>
+        <div 
+            className="w-16 h-16 rounded-3xl flex items-center justify-center font-logo text-4xl text-white mx-auto mb-6 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+            style={{ backgroundColor: settings.primaryColor }}
+        >
+            {settings.logoUrl ? <img src={settings.logoUrl} className="w-10 h-10 object-contain" /> : 'K'}
+        </div>
+        <h1 className="text-2xl font-black uppercase tracking-[0.4em] text-white">
+            {settings.adminLoginTitle || 'Console Admin'}
+        </h1>
         <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.6em] mt-3">Segurança Nível 1</p>
       </div>
 
@@ -71,7 +89,8 @@ export const AdminLogin: React.FC = () => {
           {error && <p className="text-red-500 text-[9px] font-black uppercase tracking-widest text-center animate-pulse">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-xs uppercase tracking-[0.3em] mt-4"
+            style={{ backgroundColor: settings.primaryColor }}
+            className="w-full text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-xs uppercase tracking-[0.3em] mt-4 hover:brightness-110"
           >
             Autenticar
           </button>
