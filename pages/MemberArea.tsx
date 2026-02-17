@@ -1,14 +1,15 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getDb } from '../db';
-import { AppData, AppSettings, User } from '../types';
+import { AppData, User } from '../types';
 
 export const MemberArea: React.FC = () => {
   const [data, setData] = useState<AppData | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const isPreview = new URLSearchParams(location.search).get('preview') === 'true';
 
   useEffect(() => {
@@ -16,7 +17,6 @@ export const MemberArea: React.FC = () => {
       const db = await getDb();
       const session = localStorage.getItem('user_session');
       
-      // Feature Manutenção: Se ativo e não for preview, chuta o user
       if (db.settings.maintenanceMode && !isPreview) {
         localStorage.removeItem('user_session');
         navigate('/');
@@ -25,7 +25,7 @@ export const MemberArea: React.FC = () => {
 
       if (isPreview) {
         setData(db);
-        setUser(db.users[0] || { name: 'Preview User', phone: '000', createdAt: new Date().toISOString(), active: true });
+        setUser(db.users[0] || { name: 'Visitante', phone: '000', createdAt: new Date().toISOString(), active: true });
       } else {
         if (!session) {
           navigate('/');
@@ -43,183 +43,166 @@ export const MemberArea: React.FC = () => {
     loadData();
   }, [navigate, isPreview]);
 
-  // Lógica da Animação de Scroll
+  // --- Lógica de Animação de Scroll (Vertical) ---
   useEffect(() => {
-    const handleScroll = () => {
-      const cards = document.querySelectorAll('.scroll-card');
-      const focusPoint = window.innerHeight * 0.3; 
+      if (!data) return;
 
-      cards.forEach((card) => {
-        const rect = card.getBoundingClientRect();
-        const distanceFromFocus = rect.top - focusPoint;
-        
-        let blur = 0;
-        let scale = 1;
-        let opacity = 1;
+      const handleIntersect = (entries: IntersectionObserverEntry[]) => {
+          entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                  // Entrou na tela: Foca e normaliza
+                  entry.target.classList.remove('opacity-40', 'blur-[2px]', 'scale-95', 'translate-y-8');
+                  entry.target.classList.add('opacity-100', 'blur-0', 'scale-100', 'translate-y-0');
+              } else {
+                  // Saiu da tela: Desfoca novamente (efeito de lista dinâmica)
+                  if (entry.boundingClientRect.top > 0) {
+                    entry.target.classList.add('opacity-40', 'blur-[2px]', 'scale-95', 'translate-y-8');
+                    entry.target.classList.remove('opacity-100', 'blur-0', 'scale-100', 'translate-y-0');
+                  }
+              }
+          });
+      };
 
-        if (distanceFromFocus > 0) {
-            const ratio = Math.min(distanceFromFocus / (window.innerHeight * 0.5), 1);
-            blur = ratio * 2; 
-            scale = 1 - (ratio * 0.03); 
-            opacity = 1 - (ratio * 0.3); 
-        } else if (distanceFromFocus < -300) {
-            const ratio = Math.min(Math.abs(distanceFromFocus + 300) / 200, 1);
-            blur = ratio * 2;
-            opacity = 1 - (ratio * 0.2);
-        }
-
-        const el = card as HTMLElement;
-        el.style.filter = `blur(${blur}px)`;
-        el.style.transform = `scale(${scale})`;
-        el.style.opacity = `${opacity}`;
-        el.style.transition = 'filter 0.3s ease-out, transform 0.3s ease-out, opacity 0.3s ease-out';
+      observerRef.current = new IntersectionObserver(handleIntersect, {
+          root: null,
+          rootMargin: '0px',
+          threshold: 0.15 
       });
+
+      const cards = document.querySelectorAll('.module-card-anim');
+      cards.forEach(card => observerRef.current?.observe(card));
+
+      return () => observerRef.current?.disconnect();
+  }, [data, isPreview]); 
+
+  const { horizontalModules, verticalModules } = useMemo(() => {
+    if (!data || !user) return { horizontalModules: [], verticalModules: [] };
+
+    const availableModules = data.modules.filter(m => {
+        if (m.active === false) return false;
+        if (isPreview) return true;
+        const userJoinDate = new Date(user.createdAt).getTime();
+        const dripMillis = (m.dripDays || 0) * 24 * 60 * 60 * 1000;
+        return Date.now() >= (userJoinDate + dripMillis);
+    }).sort((a, b) => a.order - b.order);
+
+    return {
+        horizontalModules: availableModules.filter(m => m.showInHorizontal),
+        verticalModules: availableModules.filter(m => m.showInVertical !== false) // Padrão é true
     };
+  }, [data, user, isPreview]);
 
-    window.addEventListener('scroll', handleScroll);
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [data]);
+  if (!data || !user) return <div className="min-h-screen bg-white"></div>;
 
-  if (!data || !user) return null;
   const { settings } = data;
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_session');
-    navigate('/');
-  };
-
-  const allActiveModules = data.modules
-    .filter(m => {
-      // Correção crítica: Se 'active' for undefined (módulos antigos), considera true. Só esconde se for false explicitamente.
-      if (m.active === false) return false;
-      
-      if (isPreview) return true;
-      
-      const userJoinDate = new Date(user.createdAt).getTime();
-      const dripMillis = (m.dripDays || 0) * 24 * 60 * 60 * 1000;
-      return Date.now() >= (userJoinDate + dripMillis);
-    })
-    .sort((a, b) => a.order - b.order);
-
-  const verticalModules = allActiveModules.filter(m => m.showInVertical !== false);
-  const horizontalModules = allActiveModules.filter(m => m.showInHorizontal === true);
-
   return (
-    <div className="min-h-screen pb-20 selection:bg-blue-50 transition-colors duration-500" 
-         style={{ fontFamily: settings.fontFamily, backgroundColor: settings.backgroundColor || '#FFFFFF' }}>
+    <div className="min-h-screen bg-white pb-20" style={{ fontFamily: settings.fontFamily }}>
       
+      {/* --- PREVIEW BAR --- */}
       {isPreview && (
-        <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white py-4 px-8 flex items-center justify-between sticky top-0 z-[100] font-black text-[10px] uppercase tracking-[0.4em] shadow-xl">
-           <div className="flex items-center gap-3">
-               <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
-               <span>VISUALIZAÇÃO ADMIN</span>
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-slate-900/90 backdrop-blur-md text-white py-3 px-6 flex justify-between items-center shadow-xl border-b border-white/10 animate-in slide-in-from-top-full">
+           <div className="flex items-center gap-2">
+               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+               <span className="text-[10px] font-black uppercase tracking-widest">Modo Visualização</span>
            </div>
-           <button onClick={() => navigate('/admin')} className="bg-white text-blue-900 px-4 py-1.5 rounded-lg font-black text-[9px] hover:bg-slate-100 transition-colors">VOLTAR AO PAINEL</button>
+           <button 
+             onClick={() => navigate('/admin')}
+             className="bg-white text-slate-900 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-colors shadow-lg"
+           >
+             ← Voltar ao Admin
+           </button>
         </div>
       )}
 
-      {data.announcements.filter(a => a.active).map(a => (
-        <div key={a.id} className="bg-slate-900 text-white p-4 text-center text-[11px] font-bold tracking-wide relative">
-           {a.text}
-        </div>
-      ))}
-
-      <header 
-        className="flex flex-col items-center relative px-6"
-        style={{ paddingTop: `${settings.headerSpacing}px`, paddingBottom: `${settings.headerSpacing / 2}px` }}
-      >
-        {!isPreview && (
-          <button 
-            onClick={handleLogout} 
-            className="absolute top-8 right-8 text-slate-300 hover:text-red-500 transition-all font-black text-[9px] uppercase tracking-[0.3em] bg-white/50 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-100/50"
-          >
-            Sair
-          </button>
-        )}
-
-        <div className="select-none py-4 flex flex-col items-center">
-          {settings.logoUrl ? (
-            <img 
-              src={settings.logoUrl} 
-              alt={settings.appName} 
-              style={{ width: `${settings.logoWidth * 0.7}px` }}
-              className="drop-shadow-sm"
-            />
-          ) : (
-            <h1 className="font-logo text-4xl md:text-5xl" style={{ color: settings.primaryColor }}>
-              {settings.appName.split('English')[0]}
-              <span style={{ color: settings.accentColor }}>English</span>
-            </h1>
-          )}
-        </div>
+      {/* --- HEADER: Logo --- */}
+      <header className={`flex flex-col items-center pt-10 pb-6 px-6 ${isPreview ? 'mt-12' : ''}`}>
+          <div className="transform transition-transform duration-300 hover:scale-105">
+            {settings.logoUrl ? (
+                <img 
+                    src={settings.logoUrl} 
+                    alt="Logo" 
+                    style={{ width: `${settings.logoWidth}px` }} 
+                    className="object-contain drop-shadow-xl" 
+                />
+            ) : (
+                <h1 className="text-5xl font-black text-blue-900 tracking-tighter text-center">
+                    Kids<span className="text-blue-500">English</span>
+                </h1>
+            )}
+          </div>
       </header>
 
-      <main className="px-6 max-w-5xl mx-auto mt-4 space-y-16">
-        
-        {verticalModules.length === 0 && horizontalModules.length === 0 ? (
-          <div className="text-center py-40 bg-white/30 backdrop-blur-md rounded-[3rem] border-2 border-dashed border-slate-200">
-             <div className="text-6xl mb-6 grayscale opacity-20">📚</div>
-            <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.4em]">Preparando novas aventuras para você!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-12 py-4">
-            {verticalModules.map((module) => (
-              <div 
-                key={module.id} 
-                onClick={() => navigate(`/module/${module.id}`)}
-                className="scroll-card group relative w-full aspect-[21/9] rounded-[2.5rem] overflow-hidden cursor-pointer bg-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] active:scale-[0.98] will-change-transform"
-              >
-                {module.banner ? (
-                  <img 
-                    src={module.banner} 
-                    alt={module.title} 
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-200">
-                    <span className="text-7xl opacity-10">📚</span>
-                    <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest">{module.title}</p>
-                  </div>
-                )}
+      {/* --- SCROLL HORIZONTAL (Destaques) --- */}
+      {horizontalModules.length > 0 && (
+          <section className="mb-10">
+              <div className="px-6 mb-4">
+                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                      {settings.horizontalSectionTitle || 'Destaques'}
+                  </h2>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="flex overflow-x-auto gap-4 px-6 pb-6 snap-x hide-scrollbar">
+                  {horizontalModules.map(module => (
+                      <div 
+                          key={`h-${module.id}`}
+                          onClick={() => navigate(`/module/${module.id}`)}
+                          className="min-w-[85%] md:min-w-[45%] snap-center group relative aspect-[16/8] bg-slate-100 rounded-3xl shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.1)] cursor-pointer overflow-hidden border border-slate-100 transition-all active:scale-95"
+                      >
+                           {module.banner ? (
+                                <img src={module.banner} alt={module.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                           ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-indigo-50 text-indigo-200">
+                                    <span className="text-3xl mb-1">⭐</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{module.title}</span>
+                                </div>
+                           )}
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60"></div>
+                           <div className="absolute bottom-4 left-5 right-5">
+                               <h3 className="text-white font-black text-lg leading-tight drop-shadow-md">{module.title}</h3>
+                           </div>
+                      </div>
+                  ))}
+              </div>
+          </section>
+      )}
 
-        {horizontalModules.length > 0 && (
-          <div className="pt-8 border-t border-black/[0.05]">
-            <h3 className="text-slate-800 font-bold text-2xl mb-6 px-2 tracking-tight">
-                {settings.horizontalSectionTitle || 'Mais Aventuras'}
-            </h3>
-            <div className="flex gap-5 overflow-x-auto pb-8 px-2 snap-x hide-scrollbar">
-              {horizontalModules.map((module) => (
-                 <div 
-                   key={`hz-${module.id}`}
-                   onClick={() => navigate(`/module/${module.id}`)}
-                   className="snap-center shrink-0 w-[260px] md:w-[320px] aspect-[4/3] rounded-[2rem] overflow-hidden bg-white shadow-lg cursor-pointer hover:scale-[1.02] transition-transform relative"
-                 >
-                    {module.banner ? (
-                      <img src={module.banner} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-200 text-4xl opacity-20">📚</div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-6 pt-12">
-                       <p className="text-white font-bold text-sm truncate">{module.title}</p>
-                    </div>
-                 </div>
+      {/* --- LISTA VERTICAL --- */}
+      <main className="max-w-md mx-auto px-6">
+          <div className="flex flex-col gap-10">
+              {verticalModules.map((module) => (
+                  <div 
+                      key={module.id} 
+                      onClick={() => navigate(`/module/${module.id}`)}
+                      className="module-card-anim group relative w-full aspect-[16/7] bg-slate-100 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)] cursor-pointer overflow-hidden border border-slate-100 transition-all duration-700 ease-out opacity-0 translate-y-8 blur-[2px] scale-95"
+                  >
+                      {module.banner ? (
+                          <img 
+                            src={module.banner} 
+                            alt={module.title} 
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                          />
+                      ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-200">
+                              <span className="text-4xl mb-2">🖼️</span>
+                              <span className="text-xs font-black uppercase tracking-widest text-blue-300">{module.title}</span>
+                          </div>
+                      )}
+                      
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-white/10 transition-colors pointer-events-none" />
+                  </div>
               ))}
-            </div>
+              
+              {verticalModules.length === 0 && horizontalModules.length === 0 && (
+                  <div className="text-center py-20 opacity-30">
+                      <p className="text-xs font-bold uppercase tracking-widest">Nenhum conteúdo disponível</p>
+                  </div>
+              )}
           </div>
-        )}
-
       </main>
 
-      <footer className="mt-24 text-center opacity-10 py-10">
-        <p className="text-[10px] font-black uppercase tracking-[1.5em]">
-            {settings.footerText || `${settings.appName} Premium`}
-        </p>
-      </footer>
+      <div className="fixed bottom-2 right-2 opacity-0 hover:opacity-100 transition-opacity z-50">
+          <button onClick={() => { localStorage.removeItem('user_session'); navigate('/'); }} className="text-[9px] font-bold text-slate-300 p-2">Sair</button>
+      </div>
     </div>
   );
 };

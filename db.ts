@@ -1,212 +1,309 @@
 
 import { AppData, User, Module, Media, AppSettings, Announcement } from './types';
+import { supabase } from './supabaseClient';
 
-const DB_NAME = 'KidsEnglishDB_v9'; 
-const STORE_NAME = 'app_data';
-const DATA_KEY = 'root_data';
+// --- Mappers (Snake Case DB -> Camel Case App) ---
 
-const initialData: AppData = {
-  users: [
-    { phone: "98988650771", active: true, name: "Admin João", createdAt: new Date().toISOString() }
-  ],
-  modules: [
-    { id: "1", title: "Welcome Stories", category: "historias", order: 1, active: true, icon: "📚", description: "First steps into English adventures!", banner: "" },
-  ],
-  media: [
-    { id: "m1", moduleId: "1", type: "video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", title: "Let's Begin!", description: "Watch this video to start your journey." }
-  ],
-  announcements: [
-    { id: "a1", text: "Welcome to KidsEnglish! 🚀", active: true, date: new Date().toISOString() }
-  ],
-  settings: {
-    appName: "KidsEnglish",
-    logoWidth: 180,
-    fontFamily: 'Lilita One',
-    titleAlignment: 'start',
-    primaryColor: "#1A237E",
-    accentColor: "#3D5AFE",
-    backgroundColor: "#FFFFFF",
-    headerSpacing: 48,
-    loginTitle: "Acesso Exclusivo",
-    loginSubtitle: "Premium Education",
-    adminLoginTitle: "Console Admin",
-    adminLoginSubtitle: "Segurança Nível 1",
-    showAdminLink: true,
-    maintenanceMode: false,
-    horizontalSectionTitle: "Mais Aventuras",
-    footerText: "KIDSENGLISH PREMIUM",
-    moduleDesignTheme: 'modern-glass'
-  }
+const mapUser = (u: any): User => ({
+  phone: u.phone,
+  name: u.name,
+  active: u.active,
+  createdAt: u.created_at,
+  lastLogin: u.last_login
+});
+
+const mapModule = (m: any): Module => ({
+  id: m.id,
+  title: m.title,
+  category: m.category || 'geral', // Default fallback
+  order: m.order_index,
+  active: m.active,
+  icon: m.icon,
+  description: m.description,
+  banner: m.banner,
+  bannerSize: m.banner_size,
+  dripDays: m.drip_days,
+  showInVertical: m.show_in_vertical,
+  showInHorizontal: m.show_in_horizontal
+});
+
+const mapMedia = (m: any): Media => ({
+  id: m.id,
+  moduleId: m.module_id,
+  type: m.type,
+  url: m.url,
+  title: m.title,
+  description: m.description
+});
+
+const mapAnnouncement = (a: any): Announcement => ({
+  id: a.id,
+  text: a.text,
+  active: a.active,
+  date: a.date
+});
+
+const mapSettings = (s: any): AppSettings => ({
+  appName: s.app_name,
+  logoUrl: s.logo_url,
+  logoWidth: s.logo_width || 180,
+  fontFamily: s.font_family || 'Lilita One',
+  titleAlignment: s.title_alignment || 'start',
+  primaryColor: s.primary_color || '#1A237E',
+  accentColor: s.accent_color || '#3D5AFE',
+  backgroundColor: s.background_color || '#FFFFFF',
+  headerSpacing: s.header_spacing || 48,
+  loginTitle: s.login_title || 'Acesso Exclusivo',
+  loginSubtitle: s.login_subtitle || 'Premium Education',
+  adminLoginTitle: s.admin_login_title || 'Console Admin',
+  adminLoginSubtitle: s.admin_login_subtitle || 'Segurança Nível 1',
+  showAdminLink: s.show_admin_link !== false,
+  maintenanceMode: s.maintenance_mode || false,
+  horizontalSectionTitle: s.horizontal_section_title || 'Mais Aventuras',
+  footerText: s.footer_text || 'KIDSENGLISH PREMIUM',
+  moduleDesignTheme: s.module_design_theme || 'modern-glass'
+});
+
+const defaultSettings: AppSettings = {
+  appName: "KidsEnglish",
+  logoWidth: 180,
+  fontFamily: 'Lilita One',
+  titleAlignment: 'start',
+  primaryColor: "#1A237E",
+  accentColor: "#3D5AFE",
+  backgroundColor: "#FFFFFF",
+  headerSpacing: 48,
+  loginTitle: "Acesso Exclusivo",
+  loginSubtitle: "Premium Education",
+  adminLoginTitle: "Console Admin",
+  adminLoginSubtitle: "Segurança Nível 1",
+  showAdminLink: true,
+  maintenanceMode: false,
+  horizontalSectionTitle: "Mais Aventuras",
+  footerText: "KIDSENGLISH PREMIUM",
+  moduleDesignTheme: 'modern-glass'
 };
 
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
+// --- CORE FUNCTIONS ---
 
 export const getDb = async (): Promise<AppData> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(DATA_KEY);
-    request.onsuccess = () => {
-      if (request.result) {
-        const data = request.result as AppData;
-        data.modules.sort((a, b) => a.order - b.order);
-        resolve(data);
-      } else {
-        saveDb(initialData).then(() => resolve(initialData));
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const [users, modules, media, announcements, settingsRes] = await Promise.all([
+    supabase.from('users').select('*'),
+    supabase.from('modules').select('*').order('order_index', { ascending: true }),
+    supabase.from('media').select('*'),
+    supabase.from('announcements').select('*').order('date', { ascending: false }),
+    supabase.from('settings').select('*').limit(1).single()
+  ]);
+
+  return {
+    users: (users.data || []).map(mapUser),
+    modules: (modules.data || []).map(mapModule),
+    media: (media.data || []).map(mapMedia),
+    announcements: (announcements.data || []).map(mapAnnouncement),
+    settings: settingsRes.data ? mapSettings(settingsRes.data) : defaultSettings
+  };
 };
 
-export const saveDb = async (data: AppData): Promise<boolean> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(JSON.parse(JSON.stringify(data)), DATA_KEY);
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-export const resetDb = async (): Promise<void> => {
-    await saveDb(initialData);
+export const findUser = async (phone: string): Promise<User | null> => {
+    const { data, error } = await supabase.from('users').select('*').eq('phone', phone).single();
+    if (error || !data) return null;
+    return mapUser(data);
 };
 
 export const updateSettings = async (settings: AppSettings) => {
-  const db = await getDb();
-  db.settings = settings;
-  await saveDb(db);
-};
+    const dbSettings = {
+        app_name: settings.appName,
+        logo_url: settings.logoUrl,
+        logo_width: settings.logoWidth,
+        font_family: settings.fontFamily,
+        title_alignment: settings.titleAlignment,
+        primary_color: settings.primaryColor,
+        accent_color: settings.accentColor,
+        background_color: settings.backgroundColor,
+        header_spacing: settings.headerSpacing,
+        login_title: settings.loginTitle,
+        login_subtitle: settings.loginSubtitle,
+        admin_login_title: settings.adminLoginTitle,
+        admin_login_subtitle: settings.adminLoginSubtitle,
+        show_admin_link: settings.showAdminLink,
+        maintenance_mode: settings.maintenanceMode,
+        horizontal_section_title: settings.horizontalSectionTitle,
+        footer_text: settings.footerText,
+        module_design_theme: settings.moduleDesignTheme
+    };
 
-export const addAnnouncement = async (text: string) => {
-  const db = await getDb();
-  db.announcements.push({ id: Date.now().toString(), text, active: true, date: new Date().toISOString() });
-  await saveDb(db);
-};
-
-export const removeAnnouncement = async (id: string) => {
-  const db = await getDb();
-  db.announcements = db.announcements.filter(a => a.id !== id);
-  await saveDb(db);
-};
-
-export const toggleAnnouncement = async (id: string) => {
-  const db = await getDb();
-  const ann = db.announcements.find(a => a.id === id);
-  if (ann) {
-    ann.active = !ann.active;
-    await saveDb(db);
-  }
-};
-
-export const addModule = async (module: Omit<Module, 'id'>) => {
-  const db = await getDb();
-  const newModule = { ...module, id: Date.now().toString() };
-  db.modules.push(newModule);
-  await saveDb(db);
-  return true;
-};
-
-export const updateModule = async (updatedModule: Module) => {
-  const db = await getDb();
-  db.modules = db.modules.map(m => m.id === updatedModule.id ? updatedModule : m);
-  await saveDb(db);
-  return true;
-};
-
-export const removeModule = async (id: string) => {
-  const db = await getDb();
-  db.modules = db.modules.filter(m => m.id !== id);
-  db.media = db.media.filter(m => m.moduleId === id ? false : true); 
-  await saveDb(db);
-  return true;
-};
-
-export const reorderModule = async (moduleId: string, direction: 'up' | 'down') => {
-  const db = await getDb();
-  const index = db.modules.findIndex(m => m.id === moduleId);
-  if (index === -1) return;
-  const newIndex = direction === 'up' ? index - 1 : index + 1;
-  if (newIndex < 0 || newIndex >= db.modules.length) return;
-  const temp = db.modules[index];
-  db.modules[index] = db.modules[newIndex];
-  db.modules[newIndex] = temp;
-  db.modules.forEach((m, i) => m.order = i + 1);
-  await saveDb(db);
-};
-
-export const addMedia = async (media: Omit<Media, 'id'>) => {
-  const db = await getDb();
-  db.media.push({ ...media, id: Date.now().toString() });
-  await saveDb(db);
-};
-
-export const removeMedia = async (id: string) => {
-  const db = await getDb();
-  db.media = db.media.filter(m => m.id !== id);
-  await saveDb(db);
-};
-
-export const addUser = async (user: Omit<User, 'createdAt'>) => {
-  const db = await getDb();
-  if (!db.users.find(u => u.phone === user.phone)) {
-    db.users.push({ ...user, createdAt: new Date().toISOString() });
-    await saveDb(db);
-  }
-};
-
-export const updateUser = async (originalPhone: string, updates: Partial<User>) => {
-    const db = await getDb();
-    const userIndex = db.users.findIndex(u => u.phone === originalPhone);
-    if (userIndex >= 0) {
-        db.users[userIndex] = { ...db.users[userIndex], ...updates };
-        await saveDb(db);
+    const { data } = await supabase.from('settings').select('id').limit(1);
+    
+    if (data && data.length > 0) {
+        await supabase.from('settings').update(dbSettings).eq('id', data[0].id);
+    } else {
+        await supabase.from('settings').insert(dbSettings);
     }
 };
 
-export const removeUser = async (phone: string) => {
-  const db = await getDb();
-  db.users = db.users.filter(u => u.phone !== phone);
-  await saveDb(db);
+export const addModule = async (module: any) => {
+    const dbModule = {
+        title: module.title,
+        category: module.category || 'geral',
+        order_index: module.order,
+        active: module.active,
+        description: module.description,
+        banner: module.banner,
+        show_in_vertical: module.showInVertical,
+        show_in_horizontal: module.showInHorizontal
+    };
+    await supabase.from('modules').insert(dbModule);
 };
 
-export const findUser = async (phone: string): Promise<User | undefined> => {
-  const db = await getDb();
-  const user = db.users.find(u => u.phone === phone && u.active);
-  if (user) {
-    user.lastLogin = new Date().toISOString();
-    await saveDb(db);
-  }
-  return user;
+export const updateModule = async (module: Module) => {
+     const dbModule = {
+        title: module.title,
+        category: module.category || 'geral',
+        order_index: module.order,
+        active: module.active,
+        description: module.description,
+        banner: module.banner,
+        show_in_vertical: module.showInVertical,
+        show_in_horizontal: module.showInHorizontal
+    };
+    await supabase.from('modules').update(dbModule).eq('id', module.id);
+};
+
+export const removeModule = async (id: string) => {
+    await supabase.from('modules').delete().eq('id', id);
+};
+
+export const addMedia = async (media: any) => {
+    const dbMedia = {
+        module_id: media.moduleId,
+        type: media.type,
+        url: media.url,
+        title: media.title,
+        description: media.description
+    };
+    await supabase.from('media').insert(dbMedia);
+};
+
+export const removeMedia = async (id: string) => {
+    await supabase.from('media').delete().eq('id', id);
+};
+
+export const addUser = async (user: any) => {
+    const dbUser = {
+        phone: user.phone,
+        name: user.name,
+        active: user.active,
+        created_at: new Date().toISOString()
+    };
+    await supabase.from('users').insert(dbUser);
+};
+
+export const removeUser = async (phone: string) => {
+    await supabase.from('users').delete().eq('phone', phone);
+};
+
+export const updateUser = async (user: User) => {
+    await supabase.from('users').update({ name: user.name, active: user.active }).eq('phone', user.phone);
+};
+
+export const addAnnouncement = async (text: string) => {
+    await supabase.from('announcements').insert({
+        text,
+        active: true,
+        date: new Date().toISOString()
+    });
+};
+
+export const removeAnnouncement = async (id: string) => {
+    await supabase.from('announcements').delete().eq('id', id);
+};
+
+export const toggleAnnouncement = async (id: string) => {
+    const { data } = await supabase.from('announcements').select('active').eq('id', id).single();
+    if (data) {
+        await supabase.from('announcements').update({ active: !data.active }).eq('id', id);
+    }
+};
+
+export const reorderModule = async (moduleId: string, newIndex: number) => {
+    await supabase.from('modules').update({ order_index: newIndex }).eq('id', moduleId);
+};
+
+export const resetDb = async () => {
+    if (confirm('Atenção: Isso limpará TODOS os dados do banco (Módulos, Alunos, Aulas). Configurações serão mantidas. Continuar?')) {
+        await supabase.from('media').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('modules').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('users').delete().neq('phone', '0');
+        await supabase.from('announcements').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    }
 };
 
 export const exportData = async (): Promise<string> => {
-  const db = await getDb();
-  return JSON.stringify(db);
+    const db = await getDb();
+    return JSON.stringify(db, null, 2);
 };
 
-export const importData = async (jsonString: string): Promise<boolean> => {
-  try {
-    const data = JSON.parse(jsonString) as AppData;
-    if (!data.settings || !Array.isArray(data.users)) return false;
-    await saveDb(data);
-    return true;
-  } catch (e) {
-    return false;
-  }
+export const importData = async (jsonContent: string): Promise<boolean> => {
+    try {
+        const data = JSON.parse(jsonContent) as AppData;
+        
+        // 1. Settings
+        if (data.settings) await updateSettings(data.settings);
+
+        // 2. Users (Upsert)
+        if (data.users && data.users.length > 0) {
+            const usersPayload = data.users.map(u => ({
+                phone: u.phone,
+                name: u.name,
+                active: u.active,
+                created_at: u.createdAt
+            }));
+            await supabase.from('users').upsert(usersPayload, { onConflict: 'phone' });
+        }
+
+        // 3. Modules (Upsert)
+        if (data.modules && data.modules.length > 0) {
+             const modulesPayload = data.modules.map(m => ({
+                id: m.id,
+                title: m.title,
+                category: m.category || 'geral',
+                order_index: m.order,
+                active: m.active,
+                description: m.description,
+                banner: m.banner,
+                show_in_vertical: m.showInVertical,
+                show_in_horizontal: m.showInHorizontal
+            }));
+            await supabase.from('modules').upsert(modulesPayload, { onConflict: 'id' });
+        }
+        
+        // 4. Media (Upsert)
+        if (data.media && data.media.length > 0) {
+            const mediaPayload = data.media.map(m => ({
+                id: m.id,
+                module_id: m.moduleId,
+                type: m.type,
+                url: m.url,
+                title: m.title,
+                description: m.description
+            }));
+             await supabase.from('media').upsert(mediaPayload, { onConflict: 'id' });
+        }
+
+        // 5. Announcements
+        if (data.announcements && data.announcements.length > 0) {
+             const annPayload = data.announcements.map(a => ({
+                id: a.id,
+                text: a.text,
+                active: a.active,
+                date: a.date
+            }));
+            await supabase.from('announcements').upsert(annPayload, { onConflict: 'id' });
+        }
+        
+        return true;
+    } catch (e) {
+        console.error("Import Error", e);
+        return false;
+    }
 };

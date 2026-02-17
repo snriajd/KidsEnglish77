@@ -1,11 +1,11 @@
 
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { UserLogin } from './pages/UserLogin.tsx';
-import { AdminLogin } from './pages/AdminLogin.tsx';
-import { MemberArea } from './pages/MemberArea.tsx';
-import { AdminPanel } from './pages/AdminPanel.tsx';
-import { ModuleView } from './pages/ModuleView.tsx';
+import { UserLogin } from './pages/UserLogin';
+import { AdminLogin } from './pages/AdminLogin';
+import { MemberArea } from './pages/MemberArea';
+import { AdminPanel } from './pages/AdminPanel';
+import { ModuleView } from './pages/ModuleView';
 
 const App: React.FC = () => {
   return (

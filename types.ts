@@ -10,7 +10,7 @@ export interface User {
 export interface Module {
   id: string;
   title: string;
-  category: 'historias' | 'videos' | 'jogos' | 'musicas';
+  category: string; // Alterado para string genérica
   order: number;
   active: boolean;
   icon?: string;
@@ -56,7 +56,7 @@ export interface AppSettings {
   maintenanceMode: boolean;
   horizontalSectionTitle: string; 
   footerText: string;
-  moduleDesignTheme?: 'modern-glass' | 'playful-kids' | 'cinema-dark' | 'minimal-list' | 'gamer-grid'; // Novo
+  moduleDesignTheme?: 'modern-glass' | 'playful-kids' | 'cinema-dark' | 'minimal-list' | 'gamer-grid';
 }
 
 export interface AppData {
