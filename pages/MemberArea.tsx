@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getDb } from '../db';
-import { AppData, User } from '../types';
+import { getMemberData } from '../db';
+import { AppData, User, Module } from '../types';
 
 export const MemberArea: React.FC = () => {
   const [data, setData] = useState<AppData | null>(null);
@@ -14,30 +14,47 @@ export const MemberArea: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const db = await getDb();
       const session = localStorage.getItem('user_session');
       
-      if (db.settings.maintenanceMode && !isPreview) {
-        localStorage.removeItem('user_session');
+      // Se for preview do Admin
+      if (isPreview) {
+          // No preview, usamos dados fake para user, mas precisamos carregar o appData
+          // Como não temos a função antiga getDb exposta igual, vamos usar um hack
+          // Na prática, o preview deve vir do admin logado. 
+          // Simplificação: redirecionar para login se não tiver dados ou carregar dados básicos
+          // Idealmente, o admin passaria o estado via contexto, mas aqui vamos tentar carregar
+          const { appData } = await getMemberData('000'); // Carrega configs públicas
+          setData(appData);
+          setUser({ name: 'Visitante (Admin)', phone: '000', createdAt: new Date().toISOString(), active: true });
+          return;
+      }
+
+      if (!session) {
         navigate('/');
         return;
       }
 
-      if (isPreview) {
-        setData(db);
-        setUser(db.users[0] || { name: 'Visitante', phone: '000', createdAt: new Date().toISOString(), active: true });
-      } else {
-        if (!session) {
-          navigate('/');
-          return;
+      try {
+        const loggedUser = JSON.parse(session);
+        // OTIMIZAÇÃO: Carrega apenas o necessário para este membro
+        const { appData, user: freshUser } = await getMemberData(loggedUser.phone);
+        
+        if (appData.settings.maintenanceMode) {
+            localStorage.removeItem('user_session');
+            navigate('/');
+            return;
         }
-        try {
-          const loggedUser = JSON.parse(session);
-          setData(db);
-          setUser(loggedUser);
-        } catch(e) {
-          navigate('/');
+
+        if (!freshUser || !freshUser.active) {
+             localStorage.removeItem('user_session');
+             navigate('/');
+             return;
         }
+
+        setData(appData);
+        setUser(freshUser);
+      } catch(e) {
+        navigate('/');
       }
     };
     loadData();
@@ -95,6 +112,76 @@ export const MemberArea: React.FC = () => {
   if (!data || !user) return <div className="min-h-screen bg-white"></div>;
 
   const { settings } = data;
+  const isHorizontalBottom = settings.horizontalSectionPosition === 'bottom';
+
+  const HorizontalSection = () => (
+      horizontalModules.length > 0 ? (
+          <section className="mb-10">
+              <div className="px-6 mb-4">
+                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                      {settings.horizontalSectionTitle || 'Destaques'}
+                  </h2>
+              </div>
+              <div className="flex overflow-x-auto gap-4 px-6 pb-6 snap-x hide-scrollbar">
+                  {horizontalModules.map(module => (
+                      <div 
+                          key={`h-${module.id}`}
+                          onClick={() => navigate(`/module/${module.id}`)}
+                          className="min-w-[85%] md:min-w-[45%] snap-center group relative aspect-[16/8] bg-slate-100 rounded-3xl shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.1)] cursor-pointer overflow-hidden border border-slate-100 transition-all active:scale-95"
+                      >
+                           {module.banner ? (
+                                <img src={module.banner} alt={module.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                           ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-indigo-50 text-indigo-200">
+                                    <span className="text-3xl mb-1">⭐</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{module.title}</span>
+                                </div>
+                           )}
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60"></div>
+                           <div className="absolute bottom-4 left-5 right-5">
+                               <h3 className="text-white font-black text-lg leading-tight drop-shadow-md">{module.title}</h3>
+                           </div>
+                      </div>
+                  ))}
+              </div>
+          </section>
+      ) : null
+  );
+
+  const VerticalSection = () => (
+      <main className="max-w-md mx-auto px-6 mb-10">
+          <div className="flex flex-col gap-10">
+              {verticalModules.map((module) => (
+                  <div 
+                      key={module.id} 
+                      onClick={() => navigate(`/module/${module.id}`)}
+                      className="module-card-anim group relative w-full aspect-[16/7] bg-slate-100 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)] cursor-pointer overflow-hidden border border-slate-100 transition-all duration-700 ease-out opacity-0 translate-y-8 blur-[2px] scale-95"
+                  >
+                      {module.banner ? (
+                          <img 
+                            src={module.banner} 
+                            alt={module.title} 
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                          />
+                      ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-200">
+                              <span className="text-4xl mb-2">🖼️</span>
+                              <span className="text-xs font-black uppercase tracking-widest text-blue-300">{module.title}</span>
+                          </div>
+                      )}
+                      
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-white/10 transition-colors pointer-events-none" />
+                  </div>
+              ))}
+              
+              {verticalModules.length === 0 && horizontalModules.length === 0 && (
+                  <div className="text-center py-20 opacity-30">
+                      <p className="text-xs font-bold uppercase tracking-widest">Nenhum conteúdo disponível</p>
+                  </div>
+              )}
+          </div>
+      </main>
+  );
 
   return (
     <div className="min-h-screen bg-white pb-20" style={{ fontFamily: settings.fontFamily }}>
@@ -133,72 +220,10 @@ export const MemberArea: React.FC = () => {
           </div>
       </header>
 
-      {/* --- SCROLL HORIZONTAL (Destaques) --- */}
-      {horizontalModules.length > 0 && (
-          <section className="mb-10">
-              <div className="px-6 mb-4">
-                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                      {settings.horizontalSectionTitle || 'Destaques'}
-                  </h2>
-              </div>
-              <div className="flex overflow-x-auto gap-4 px-6 pb-6 snap-x hide-scrollbar">
-                  {horizontalModules.map(module => (
-                      <div 
-                          key={`h-${module.id}`}
-                          onClick={() => navigate(`/module/${module.id}`)}
-                          className="min-w-[85%] md:min-w-[45%] snap-center group relative aspect-[16/8] bg-slate-100 rounded-3xl shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.1)] cursor-pointer overflow-hidden border border-slate-100 transition-all active:scale-95"
-                      >
-                           {module.banner ? (
-                                <img src={module.banner} alt={module.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                           ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-indigo-50 text-indigo-200">
-                                    <span className="text-3xl mb-1">⭐</span>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">{module.title}</span>
-                                </div>
-                           )}
-                           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60"></div>
-                           <div className="absolute bottom-4 left-5 right-5">
-                               <h3 className="text-white font-black text-lg leading-tight drop-shadow-md">{module.title}</h3>
-                           </div>
-                      </div>
-                  ))}
-              </div>
-          </section>
-      )}
-
-      {/* --- LISTA VERTICAL --- */}
-      <main className="max-w-md mx-auto px-6">
-          <div className="flex flex-col gap-10">
-              {verticalModules.map((module) => (
-                  <div 
-                      key={module.id} 
-                      onClick={() => navigate(`/module/${module.id}`)}
-                      className="module-card-anim group relative w-full aspect-[16/7] bg-slate-100 rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)] cursor-pointer overflow-hidden border border-slate-100 transition-all duration-700 ease-out opacity-0 translate-y-8 blur-[2px] scale-95"
-                  >
-                      {module.banner ? (
-                          <img 
-                            src={module.banner} 
-                            alt={module.title} 
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-                          />
-                      ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-200">
-                              <span className="text-4xl mb-2">🖼️</span>
-                              <span className="text-xs font-black uppercase tracking-widest text-blue-300">{module.title}</span>
-                          </div>
-                      )}
-                      
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-white/10 transition-colors pointer-events-none" />
-                  </div>
-              ))}
-              
-              {verticalModules.length === 0 && horizontalModules.length === 0 && (
-                  <div className="text-center py-20 opacity-30">
-                      <p className="text-xs font-bold uppercase tracking-widest">Nenhum conteúdo disponível</p>
-                  </div>
-              )}
-          </div>
-      </main>
+      {/* Renderização Condicional da Ordem */}
+      {!isHorizontalBottom && <HorizontalSection />}
+      <VerticalSection />
+      {isHorizontalBottom && <HorizontalSection />}
 
       <div className="fixed bottom-2 right-2 opacity-0 hover:opacity-100 transition-opacity z-50">
           <button onClick={() => { localStorage.removeItem('user_session'); navigate('/'); }} className="text-[9px] font-bold text-slate-300 p-2">Sair</button>

@@ -55,6 +55,7 @@ export interface AppSettings {
   showAdminLink?: boolean;
   maintenanceMode: boolean;
   horizontalSectionTitle: string; 
+  horizontalSectionPosition: 'top' | 'bottom'; // Novo campo
   footerText: string;
   moduleDesignTheme?: 'modern-glass' | 'playful-kids' | 'cinema-dark' | 'minimal-list' | 'gamer-grid';
 }

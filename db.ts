@@ -60,11 +60,12 @@ const mapSettings = (s: any): AppSettings => ({
   showAdminLink: s.show_admin_link !== false,
   maintenanceMode: s.maintenance_mode || false,
   horizontalSectionTitle: s.horizontal_section_title || 'Mais Aventuras',
+  horizontalSectionPosition: s.horizontal_section_position || 'top',
   footerText: s.footer_text || 'KIDSENGLISH PREMIUM',
   moduleDesignTheme: s.module_design_theme || 'modern-glass'
 });
 
-const defaultSettings: AppSettings = {
+export const defaultSettings: AppSettings = {
   appName: "KidsEnglish",
   logoWidth: 180,
   fontFamily: 'Lilita One',
@@ -80,18 +81,77 @@ const defaultSettings: AppSettings = {
   showAdminLink: true,
   maintenanceMode: false,
   horizontalSectionTitle: "Mais Aventuras",
+  horizontalSectionPosition: 'top',
   footerText: "KIDSENGLISH PREMIUM",
   moduleDesignTheme: 'modern-glass'
 };
 
+export const defaultAppData: AppData = {
+    users: [],
+    modules: [],
+    media: [],
+    announcements: [],
+    settings: defaultSettings
+};
+
 // --- CORE FUNCTIONS ---
 
-// NOVA FUNÇÃO OTIMIZADA: Busca apenas configurações (rápido)
+// 1. Configurações Públicas (Rápido)
 export const getPublicSettings = async (): Promise<AppSettings> => {
     const { data } = await supabase.from('settings').select('*').limit(1).single();
     return data ? mapSettings(data) : defaultSettings;
 };
 
+// 2. Dados Otimizados para Área de Membros (Não baixa lista de usuários)
+export const getMemberData = async (userPhone: string): Promise<{ appData: AppData, user: User | null }> => {
+    const [modules, media, announcements, settingsRes, userRes] = await Promise.all([
+        supabase.from('modules').select('*').eq('active', true).order('order_index', { ascending: true }),
+        supabase.from('media').select('*'),
+        supabase.from('announcements').select('*').eq('active', true).order('date', { ascending: false }),
+        supabase.from('settings').select('*').limit(1).single(),
+        supabase.from('users').select('*').eq('phone', userPhone).single()
+    ]);
+
+    return {
+        appData: {
+            users: [], // Membro não vê outros users
+            modules: (modules.data || []).map(mapModule),
+            media: (media.data || []).map(mapMedia),
+            announcements: (announcements.data || []).map(mapAnnouncement),
+            settings: settingsRes.data ? mapSettings(settingsRes.data) : defaultSettings
+        },
+        user: userRes.data ? mapUser(userRes.data) : null
+    };
+};
+
+// 3. Funções Granulares para o Admin (Progressive Loading)
+export const fetchSettings = async (): Promise<AppSettings> => {
+    const { data } = await supabase.from('settings').select('*').limit(1).single();
+    return data ? mapSettings(data) : defaultSettings;
+};
+
+export const fetchModulesAndMedia = async (): Promise<{ modules: Module[], media: Media[] }> => {
+    const [mod, med] = await Promise.all([
+        supabase.from('modules').select('*').order('order_index', { ascending: true }),
+        supabase.from('media').select('*')
+    ]);
+    return {
+        modules: (mod.data || []).map(mapModule),
+        media: (med.data || []).map(mapMedia)
+    };
+};
+
+export const fetchUsers = async (): Promise<User[]> => {
+    const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    return (data || []).map(mapUser);
+};
+
+export const fetchAnnouncements = async (): Promise<Announcement[]> => {
+    const { data } = await supabase.from('announcements').select('*').order('date', { ascending: false });
+    return (data || []).map(mapAnnouncement);
+};
+
+// 4. Backup Completo (Apenas para exportação)
 export const getDb = async (): Promise<AppData> => {
   const [users, modules, media, announcements, settingsRes] = await Promise.all([
     supabase.from('users').select('*'),
@@ -134,6 +194,7 @@ export const updateSettings = async (settings: AppSettings) => {
         show_admin_link: settings.showAdminLink,
         maintenance_mode: settings.maintenanceMode,
         horizontal_section_title: settings.horizontalSectionTitle,
+        horizontal_section_position: settings.horizontalSectionPosition,
         footer_text: settings.footerText,
         module_design_theme: settings.moduleDesignTheme
     };
@@ -161,6 +222,20 @@ export const addModule = async (module: any) => {
     await supabase.from('modules').insert(dbModule);
 };
 
+export const duplicateModule = async (originalModule: Module, newOrder: number) => {
+    const dbModule = {
+        title: `${originalModule.title} (Cópia)`,
+        category: originalModule.category || 'geral',
+        order_index: newOrder,
+        active: false, // Começa inativo por segurança
+        description: originalModule.description,
+        banner: originalModule.banner,
+        show_in_vertical: originalModule.showInVertical,
+        show_in_horizontal: originalModule.showInHorizontal
+    };
+    await supabase.from('modules').insert(dbModule);
+};
+
 export const updateModule = async (module: Module) => {
      const dbModule = {
         title: module.title,
@@ -177,6 +252,12 @@ export const updateModule = async (module: Module) => {
 
 export const removeModule = async (id: string) => {
     await supabase.from('modules').delete().eq('id', id);
+};
+
+export const swapModuleOrder = async (id1: string, order1: number, id2: string, order2: number) => {
+    // Troca a ordem de dois módulos
+    await supabase.from('modules').update({ order_index: order2 }).eq('id', id1);
+    await supabase.from('modules').update({ order_index: order1 }).eq('id', id2);
 };
 
 export const addMedia = async (media: any) => {

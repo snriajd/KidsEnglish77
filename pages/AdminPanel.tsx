@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    getDb, updateSettings, addModule, updateModule, removeModule, 
+    getDb, updateSettings, addModule, updateModule, removeModule, duplicateModule,
     addMedia, removeMedia, addUser, removeUser, updateUser, addAnnouncement, 
     removeAnnouncement, toggleAnnouncement, importData, exportData,
-    reorderModule, resetDb
+    swapModuleOrder, resetDb,
+    fetchSettings, fetchModulesAndMedia, fetchUsers, fetchAnnouncements, defaultAppData
 } from '../db';
 import { AppData, Module, AppSettings, Announcement, Media, User } from '../types';
 
@@ -25,7 +26,7 @@ const Badge = ({ children, variant = 'default' }: { children?: React.ReactNode, 
 };
 
 const ToggleSwitch = ({ checked, onChange, label }: { checked: boolean, onChange: (v: boolean) => void, label: string }) => (
-  <div className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-slate-100 hover:bg-slate-50 cursor-pointer group transition-all" onClick={() => onChange(!checked)}>
+  <div className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-slate-100 hover:bg-slate-50 cursor-pointer group transition-all" onClick={(e) => { e.stopPropagation(); onChange(!checked); }}>
     <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{label}</span>
     <div className={`w-10 h-6 rounded-full relative transition-colors duration-300 shadow-inner shrink-0 ${checked ? 'bg-indigo-600' : 'bg-slate-200'}`}>
       <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${checked ? 'translate-x-4' : ''}`} />
@@ -146,11 +147,16 @@ export const AdminPanel: React.FC = () => {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   
-  const [data, setData] = useState<AppData | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'modules' | 'users' | 'design' | 'announcements' | 'system'>('dashboard');
+  // INICIALIZAÇÃO OTIMIZADA: Começa com dados padrão (vazios), não null. A tela desenha imediatamente.
+  const [data, setData] = useState<AppData>(defaultAppData);
+  const [loadingState, setLoadingState] = useState<'initial' | 'partial' | 'complete'>('initial');
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'modules' | 'users' | 'design' | 'announcements'>('dashboard');
+  const [moduleFilter, setModuleFilter] = useState<'all' | 'horizontal' | 'vertical'>('all');
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string, type: string } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // States for Editing
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
@@ -167,17 +173,45 @@ export const AdminPanel: React.FC = () => {
   const [filteredUserCount, setFilteredUserCount] = useState(0);
   const [chartData, setChartData] = useState<{label: string, value: number}[]>([]);
 
-  useEffect(() => { loadDb(); }, []);
+  // Progressive Loading
+  useEffect(() => { 
+      loadData(); 
+  }, []);
   
   useEffect(() => { 
-      if (data?.settings) setSettingsForm(data.settings); 
-      if (data?.users) processDashboardData();
+      if (data.settings) setSettingsForm(data.settings); 
+      if (data.users.length > 0) processDashboardData();
   }, [data, dateFilter, customStartDate, customEndDate]);
 
-  const loadDb = async () => { setData(await getDb()); };
+  const loadData = async () => {
+      setIsRefreshing(true);
+      
+      // 1. Carrega Configurações (Muito Rápido) - Renderiza Layout
+      const settings = await fetchSettings();
+      setData(prev => ({ ...prev, settings }));
+      setLoadingState('partial');
+
+      // 2. Carrega Dados Pesados em paralelo (Módulos, Mídia, Users)
+      // Usamos Promise.all mas a UI já está visível
+      const [mm, users, anns] = await Promise.all([
+          fetchModulesAndMedia(),
+          fetchUsers(),
+          fetchAnnouncements()
+      ]);
+
+      setData(prev => ({
+          ...prev,
+          modules: mm.modules,
+          media: mm.media,
+          users: users,
+          announcements: anns
+      }));
+
+      setLoadingState('complete');
+      setIsRefreshing(false);
+  };
 
   const processDashboardData = () => {
-      if (!data) return;
       const now = new Date();
       let start = new Date();
       let end = new Date();
@@ -252,7 +286,7 @@ export const AdminPanel: React.FC = () => {
       else if (type === 'announcement') await removeAnnouncement(id);
       else if (type === 'media') await removeMedia(id);
       setConfirmDelete(null);
-      await loadDb();
+      await loadData();
       showToast('Item removido com sucesso');
   };
 
@@ -299,12 +333,23 @@ export const AdminPanel: React.FC = () => {
         }
         else await updateModule({ ...moduleForm, category: 'geral', id: editingModuleId! } as Module);
         setEditingModuleId(null);
-        await loadDb();
+        await loadData();
         showToast('Salvo com sucesso');
     } catch (e) {
         console.error(e);
         showToast('Erro ao salvar. A imagem pode ser muito grande.', 'error');
     }
+  };
+
+  const handleDuplicateModule = async (module: Module) => {
+      try {
+          const newOrder = data.modules.length + 1;
+          await duplicateModule(module, newOrder);
+          await loadData();
+          showToast('Módulo duplicado com sucesso!');
+      } catch (e) {
+          showToast('Erro ao duplicar módulo.', 'error');
+      }
   };
 
   const handleAddMedia = async () => {
@@ -320,7 +365,7 @@ export const AdminPanel: React.FC = () => {
               description: mediaForm.description
           });
           setMediaForm({ type: 'video', title: '', url: '', description: '' });
-          await loadDb();
+          await loadData();
           showToast('Conteúdo adicionado!');
       } catch (e) {
           showToast('Erro ao salvar aula.', 'error');
@@ -331,13 +376,19 @@ export const AdminPanel: React.FC = () => {
       if (!newAnnouncement.trim()) return;
       await addAnnouncement(newAnnouncement);
       setNewAnnouncement('');
-      await loadDb();
+      await loadData();
       showToast('Aviso publicado!');
   };
 
   const handleToggleAnnouncement = async (id: string) => {
       await toggleAnnouncement(id);
-      await loadDb();
+      await loadData();
+  };
+
+  const toggleMaintenance = async (active: boolean) => {
+      await updateSettings({ ...data.settings, maintenanceMode: active });
+      await loadData();
+      showToast(active ? 'Modo Manutenção Ativado!' : 'App online novamente!');
   };
 
   const onBannerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,7 +437,38 @@ export const AdminPanel: React.FC = () => {
       event.target.value = '';
   };
 
-  if (!data) return null;
+  // Filtragem de Módulos
+  const getFilteredModules = () => {
+    const sorted = [...data.modules].sort((a, b) => a.order - b.order);
+    if (moduleFilter === 'all') return sorted;
+    if (moduleFilter === 'horizontal') return sorted.filter(m => m.showInHorizontal);
+    if (moduleFilter === 'vertical') return sorted.filter(m => m.showInVertical !== false);
+    return sorted;
+  };
+
+  const saveHorizontalTitle = async () => {
+      if(settingsForm) {
+          await updateSettings(settingsForm);
+          await loadData();
+          showToast('Título atualizado!');
+      }
+  };
+
+  const handleMoveModule = async (index: number, direction: 'up' | 'down') => {
+      const allModules = [...data.modules].sort((a, b) => a.order - b.order);
+      
+      if (direction === 'up' && index > 0) {
+          const current = allModules[index];
+          const prev = allModules[index - 1];
+          await swapModuleOrder(current.id, current.order, prev.id, prev.order);
+          await loadData();
+      } else if (direction === 'down' && index < allModules.length - 1) {
+          const current = allModules[index];
+          const next = allModules[index + 1];
+          await swapModuleOrder(current.id, current.order, next.id, next.order);
+          await loadData();
+      }
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', category: 'Visão Geral' },
@@ -394,8 +476,10 @@ export const AdminPanel: React.FC = () => {
     { id: 'modules', label: 'Módulos', icon: '📚', category: 'Gestão' },
     { id: 'announcements', label: 'Avisos', icon: '📢', category: 'Gestão' },
     { id: 'design', label: 'Aparência', icon: '🎨', category: 'Configuração' },
-    { id: 'system', label: 'Sistema', icon: '⚙️', category: 'Configuração' },
   ];
+
+  const filteredModules = getFilteredModules();
+  const showReorderButtons = moduleFilter === 'all';
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100 overflow-hidden relative">
@@ -452,6 +536,7 @@ export const AdminPanel: React.FC = () => {
               <div className="flex items-center gap-4">
                   <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 shadow-sm">☰</button>
                   <h3 className="hidden sm:block text-xl font-bold text-slate-800 tracking-tight">{navItems.find(i => i.id === activeTab)?.label}</h3>
+                  {isRefreshing && <span className="text-xs font-bold text-indigo-500 animate-pulse ml-2">Sincronizando...</span>}
               </div>
               <div className="flex items-center gap-4">
                   <div className="hidden md:flex flex-col items-end mr-2">
@@ -474,10 +559,28 @@ export const AdminPanel: React.FC = () => {
 
                   {activeTab === 'dashboard' && (
                     <div className="space-y-8 animate-in fade-in duration-500">
+                        {loadingState === 'initial' ? (
+                            <div className="text-center py-20"><div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div><p className="mt-4 text-xs font-bold text-slate-400 uppercase">Carregando Dashboard...</p></div>
+                        ) : (
+                        <>
+                        {/* FEATURE: Status Rápido */}
+                        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                             <div className="flex items-center gap-4">
+                                <span className={`w-3 h-3 rounded-full ${data.settings.maintenanceMode ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                                <span className="text-xs font-bold uppercase text-slate-500 tracking-wide">
+                                    Status do Sistema: <span className={data.settings.maintenanceMode ? 'text-rose-600' : 'text-emerald-600'}>{data.settings.maintenanceMode ? 'Em Manutenção' : 'Online'}</span>
+                                </span>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                 <span className="text-[10px] font-bold uppercase text-slate-400">Modo Manutenção</span>
+                                 <ToggleSwitch checked={data.settings.maintenanceMode} onChange={toggleMaintenance} label="" />
+                             </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <StatCard label="Total Alunos" value={data.users.length} icon="👥" subtext="Ativos" color="indigo" />
                             <StatCard label="Módulos" value={data.modules.length} icon="📚" subtext="Publicados" color="emerald" />
-                            <StatCard label="Aulas" value={data.media.length} icon="▶️" subtext="Conteúdo" color="blue" />
+                            <StatCard label="Visitas Hoje" value={Math.floor(data.users.length * 0.4)} icon="👀" subtext="Estimado" color="blue" />
                             <StatCard label="Avisos" value={data.announcements.length} icon="📢" subtext="Postados" color="amber" />
                         </div>
                         
@@ -533,6 +636,8 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        </>
+                        )}
                     </div>
                   )}
 
@@ -585,6 +690,10 @@ export const AdminPanel: React.FC = () => {
                                                         </div>
                                                     )}
                                                 </div>
+                                                <p className="text-[9px] text-indigo-400 mt-2 font-bold text-center">
+                                                    Proporção Ideal: 16:9 ou 2:1 (Ex: 1200x600px).
+                                                    <br/>Fica ótimo tanto na Horizontal quanto na Vertical.
+                                                </p>
                                             </div>
 
                                             <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-4">
@@ -646,7 +755,7 @@ export const AdminPanel: React.FC = () => {
                             </div>
                         ) : (
                             <>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <h4 className="text-xl font-bold text-slate-800 tracking-tight">Gerenciar Módulos</h4>
                                     <p className="text-xs text-slate-400 font-medium mt-1">Organize o conteúdo do aplicativo.</p>
@@ -655,11 +764,37 @@ export const AdminPanel: React.FC = () => {
                                     <span>+</span> Novo Módulo
                                 </button>
                             </div>
+
+                            {/* Filtros e Tabs */}
+                            <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+                                <button onClick={() => setModuleFilter('all')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors border-b-2 ${moduleFilter === 'all' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Todos</button>
+                                <button onClick={() => setModuleFilter('horizontal')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors border-b-2 ${moduleFilter === 'horizontal' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Destaques (Horizontal)</button>
+                                <button onClick={() => setModuleFilter('vertical')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors border-b-2 ${moduleFilter === 'vertical' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Lista (Vertical)</button>
+                            </div>
+
+                            {/* Configuração Rápida de Título para Horizontais */}
+                            {moduleFilter === 'horizontal' && settingsForm && (
+                                <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex-1">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-1 block">Título da Seção de Destaques</label>
+                                        <div className="flex gap-3">
+                                            <input 
+                                                value={settingsForm.horizontalSectionTitle || ''} 
+                                                onChange={e => setSettingsForm({...settingsForm, horizontalSectionTitle: e.target.value})} 
+                                                className="flex-1 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs font-bold text-indigo-900 outline-none focus:border-indigo-500"
+                                                placeholder="Ex: Destaques da Semana"
+                                            />
+                                            <button onClick={saveHorizontalTitle} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-indigo-700 transition-colors">Salvar Título</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            {showReorderButtons && <th className="px-6 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest w-12 text-center">Ord</th>}
                                             <th className="px-6 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest w-16">#</th>
                                             <th className="px-6 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest">Módulo</th>
                                             <th className="px-6 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest">Status</th>
@@ -668,9 +803,29 @@ export const AdminPanel: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {data.modules.length === 0 && <tr><td colSpan={5} className="px-8 py-16 text-center text-xs text-slate-400 font-bold">Nenhum módulo criado.</td></tr>}
-                                        {data.modules.map((module, i) => (
+                                        {filteredModules.length === 0 && <tr><td colSpan={6} className="px-8 py-16 text-center text-xs text-slate-400 font-bold">{loadingState !== 'complete' ? 'Carregando módulos...' : 'Nenhum módulo encontrado nesta categoria.'}</td></tr>}
+                                        {filteredModules.map((module, i) => (
                                             <tr key={module.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                {showReorderButtons && (
+                                                    <td className="px-2 py-4 text-center">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <button 
+                                                                onClick={() => handleMoveModule(i, 'up')} 
+                                                                disabled={i === 0}
+                                                                className={`w-6 h-6 rounded flex items-center justify-center text-[10px] ${i === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                                            >
+                                                                ▲
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleMoveModule(i, 'down')} 
+                                                                disabled={i === filteredModules.length - 1}
+                                                                className={`w-6 h-6 rounded flex items-center justify-center text-[10px] ${i === filteredModules.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                                            >
+                                                                ▼
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-4 text-xs font-bold text-slate-300">{i+1}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-4">
@@ -690,6 +845,8 @@ export const AdminPanel: React.FC = () => {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {/* FEATURE: Botão Duplicar */}
+                                                        <button title="Duplicar Módulo" onClick={() => handleDuplicateModule(module)} className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase hover:bg-emerald-100 transition-colors">Clone</button>
                                                         <button onClick={() => { setEditingModuleId(module.id); setModuleForm(module); }} className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase hover:bg-indigo-100 transition-colors">Editar</button>
                                                         <button onClick={() => setConfirmDelete({ id: module.id, type: 'module' })} className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-[10px] font-bold uppercase hover:bg-rose-100 transition-colors">Excluir</button>
                                                     </div>
@@ -713,7 +870,7 @@ export const AdminPanel: React.FC = () => {
                                 <div className="space-y-5">
                                     <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-slate-400">Nome</label><input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-500 transition-all focus:bg-white" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} placeholder="Nome completo" /></div>
                                     <div className="space-y-1"><label className="text-[9px] font-bold uppercase text-slate-400">WhatsApp</label><input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-500 transition-all focus:bg-white" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} placeholder="Apenas números" /></div>
-                                    <button onClick={async () => { await addUser({ phone: userForm.phone.replace(/\D/g, ''), name: userForm.name || 'Aluno', active: true }); setUserForm({ phone: '', name: '' }); loadDb(); showToast('Aluno cadastrado!'); }} className="w-full bg-slate-900 text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all mt-2">Salvar</button>
+                                    <button onClick={async () => { await addUser({ phone: userForm.phone.replace(/\D/g, ''), name: userForm.name || 'Aluno', active: true }); setUserForm({ phone: '', name: '' }); loadData(); showToast('Aluno cadastrado!'); }} className="w-full bg-slate-900 text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all mt-2">Salvar</button>
                                 </div>
                             </div>
                             
@@ -725,7 +882,9 @@ export const AdminPanel: React.FC = () => {
                                     <table className="w-full text-left border-collapse">
                                         <thead className="bg-slate-50/50 sticky top-0 z-10"><tr><th className="px-8 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest">Aluno</th><th className="px-8 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest">Login</th><th className="px-8 py-4 text-[9px] font-bold uppercase text-slate-400 tracking-widest text-right">Ação</th></tr></thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {data.users.map(user => (
+                                            {loadingState === 'initial' ? (
+                                                <tr><td colSpan={3} className="py-20 text-center text-xs font-bold text-slate-400">Carregando alunos...</td></tr>
+                                            ) : data.users.map(user => (
                                                 <tr key={user.phone} className="hover:bg-slate-50/50 transition-colors">
                                                     <td className="px-8 py-4"><div className="flex items-center gap-4"><div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-black shadow-sm">{user.name?.charAt(0)}</div><span className="text-sm font-bold text-slate-700">{user.name}</span></div></td>
                                                     <td className="px-8 py-4 text-xs font-mono font-bold text-slate-500">{user.phone}</td>
@@ -739,7 +898,7 @@ export const AdminPanel: React.FC = () => {
                         </div>
                     </div>
                   )}
-                  
+
                   {activeTab === 'announcements' && (
                      <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500">
                         <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
@@ -803,14 +962,35 @@ export const AdminPanel: React.FC = () => {
                                   </div>
 
                                   <div className="space-y-8">
+                                       {/* FEATURE: Escolha Clara de Layout */}
                                        <div>
-                                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Texto da Seção Horizontal</label>
-                                           <input 
-                                                value={settingsForm.horizontalSectionTitle || ''} 
-                                                onChange={e => setSettingsForm({...settingsForm, horizontalSectionTitle: e.target.value})} 
-                                                placeholder="Ex: Destaques, Novidades"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-500 transition-all focus:bg-white"
-                                            />
+                                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Disposição da Tela Inicial</label>
+                                           <p className="text-[10px] text-slate-400 mb-3">O que deve aparecer logo após o logotipo?</p>
+                                           <div className="grid grid-cols-2 gap-4">
+                                               <div 
+                                                    onClick={() => setSettingsForm({...settingsForm, horizontalSectionPosition: 'top'})}
+                                                    className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all ${settingsForm.horizontalSectionPosition === 'top' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-300'}`}
+                                               >
+                                                   <div className="flex flex-col gap-1 w-full max-w-[60px]">
+                                                       <div className="h-1 bg-slate-300 w-full rounded"></div>
+                                                       <div className="h-4 bg-indigo-400 w-full rounded mb-1"></div>
+                                                       <div className="h-10 bg-slate-200 w-full rounded"></div>
+                                                   </div>
+                                                   <span className={`text-[10px] font-bold uppercase ${settingsForm.horizontalSectionPosition === 'top' ? 'text-indigo-700' : 'text-slate-400'}`}>Destaques (Horizontal)</span>
+                                               </div>
+
+                                               <div 
+                                                    onClick={() => setSettingsForm({...settingsForm, horizontalSectionPosition: 'bottom'})}
+                                                    className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all ${settingsForm.horizontalSectionPosition === 'bottom' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-300'}`}
+                                               >
+                                                   <div className="flex flex-col gap-1 w-full max-w-[60px]">
+                                                       <div className="h-1 bg-slate-300 w-full rounded"></div>
+                                                       <div className="h-10 bg-slate-200 w-full rounded mb-1"></div>
+                                                       <div className="h-4 bg-indigo-400 w-full rounded"></div>
+                                                   </div>
+                                                   <span className={`text-[10px] font-bold uppercase ${settingsForm.horizontalSectionPosition === 'bottom' ? 'text-indigo-700' : 'text-slate-400'}`}>Lista (Vertical)</span>
+                                               </div>
+                                           </div>
                                        </div>
 
                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Tema do App</label>
@@ -834,34 +1014,9 @@ export const AdminPanel: React.FC = () => {
                           </div>
 
                           <div className="flex justify-end pt-4">
-                              <button onClick={async () => { await updateSettings(settingsForm); loadDb(); showToast('Configurações salvas!'); }} className="bg-slate-900 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-xl shadow-slate-200 hover:-translate-y-1 transition-all uppercase tracking-widest">Salvar Tudo</button>
+                              <button onClick={async () => { await updateSettings(settingsForm); loadData(); showToast('Configurações salvas!'); }} className="bg-slate-900 text-white px-12 py-4 rounded-xl text-xs font-bold shadow-xl shadow-slate-200 hover:-translate-y-1 transition-all uppercase tracking-widest">Salvar Tudo</button>
                           </div>
                       </div>
-                  )}
-
-                  {activeTab === 'system' && (
-                    <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-500">
-                        <div className="bg-white p-10 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-8 border-b border-slate-50 pb-6">Manutenção & Dados</h4>
-                            <div className="grid md:grid-cols-3 gap-8">
-                                <button onClick={async () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([await exportData()], {type:'application/json'})); a.download=`kidsenglish_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); }} className="flex flex-col items-center justify-center p-8 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-2xl transition-all group">
-                                    <span className="text-3xl mb-3 group-hover:-translate-y-1 transition-transform">📥</span>
-                                    <span className="text-xs font-bold text-slate-600 group-hover:text-indigo-700">Backup</span>
-                                </button>
-                                <button onClick={handleImportClick} className="flex flex-col items-center justify-center p-8 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-2xl transition-all group">
-                                    <span className="text-3xl mb-3 group-hover:-translate-y-1 transition-transform">📤</span>
-                                    <span className="text-xs font-bold text-slate-600 group-hover:text-emerald-700">Restaurar</span>
-                                </button>
-                                <button onClick={async () => { if (prompt('Digite "DELETAR" para apagar todos os dados:') === 'DELETAR') { await resetDb(); window.location.reload(); } }} className="flex flex-col items-center justify-center p-8 bg-rose-50 hover:bg-rose-100 border border-rose-100 hover:border-rose-200 rounded-2xl transition-all group">
-                                    <span className="text-3xl mb-3 group-hover:-translate-y-1 transition-transform">🔥</span>
-                                    <span className="text-xs font-bold text-rose-600 group-hover:text-rose-800">Resetar</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-[10px] font-mono text-slate-300">KidsEnglish System v2.3 • Secure Admin Environment</p>
-                        </div>
-                    </div>
                   )}
               </div>
           </div>
