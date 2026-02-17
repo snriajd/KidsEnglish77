@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDb } from '../db';
+import { getPublicSettings } from '../db';
 import { AppSettings } from '../types';
 
 export const AdminLogin: React.FC = () => {
@@ -18,8 +18,9 @@ export const AdminLogin: React.FC = () => {
             navigate('/admin');
             return;
         }
-        const db = await getDb();
-        setSettings(db.settings);
+        // Usar a versão otimizada
+        const s = await getPublicSettings();
+        setSettings(s);
     };
     init();
   }, [navigate]);

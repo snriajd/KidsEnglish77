@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { findUser, getDb } from '../db';
+import { findUser, getPublicSettings } from '../db';
 import { AppSettings } from '../types';
 
 export const UserLogin: React.FC = () => {
@@ -12,9 +12,10 @@ export const UserLogin: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Carrega apenas as configs visuais (muito mais rápido)
     const loadSettings = async () => {
-        const db = await getDb();
-        setSettings(db.settings);
+        const s = await getPublicSettings();
+        setSettings(s);
     };
     loadSettings();
   }, []);
@@ -25,16 +26,12 @@ export const UserLogin: React.FC = () => {
     setIsLoading(true);
     setError('');
 
-    // Pequeno delay artificial para sensação de processamento
-    await new Promise(r => setTimeout(r, 800));
-
     if (settings.maintenanceMode) {
       setError('O sistema está em manutenção. Tente mais tarde!');
       setIsLoading(false);
       return;
     }
 
-    // Normaliza o telefone (remove caracteres não numéricos)
     const cleanPhone = phone.replace(/\D/g, '');
     
     try {
@@ -58,7 +55,14 @@ export const UserLogin: React.FC = () => {
     }
   };
 
-  if (!settings) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  // Estado de carregamento leve
+  if (!settings) return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="flex flex-col items-center">
+             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          </div>
+      </div>
+  );
 
   if (settings.maintenanceMode) {
      return (

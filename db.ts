@@ -86,6 +86,12 @@ const defaultSettings: AppSettings = {
 
 // --- CORE FUNCTIONS ---
 
+// NOVA FUNÇÃO OTIMIZADA: Busca apenas configurações (rápido)
+export const getPublicSettings = async (): Promise<AppSettings> => {
+    const { data } = await supabase.from('settings').select('*').limit(1).single();
+    return data ? mapSettings(data) : defaultSettings;
+};
+
 export const getDb = async (): Promise<AppData> => {
   const [users, modules, media, announcements, settingsRes] = await Promise.all([
     supabase.from('users').select('*'),
